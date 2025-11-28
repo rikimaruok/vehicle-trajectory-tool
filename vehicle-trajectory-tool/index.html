@@ -958,13 +958,12 @@
                     return;
                 }
                 calibrationState = 'point1';
-                inputs.calibrationStatus.textContent = '図面上の点Aをクリックしてください (Click Point A)';
-                inputs.calibrationStatus.classList.remove('hidden');
-                isDrawing = false; // Disable drawing mode
+                loadModalValues();
+                drawPreview();
             });
 
-            // Override Renderer drawPath to support custom image scaling
-            renderer.drawPath = function (path) {
+            // Override Renderer drawPath to support custom image scaling and rubber-band UI
+            renderer.drawPath = function (path, currentMousePos) {
                 // Draw Background
                 if (this.bgImage) {
                     this.ctx.save();
@@ -1005,9 +1004,10 @@
                     }
                 }
 
-                if (path.length < 2 && !calPoint1) return; // Allow drawing background even if no path
+                if (path.length < 2 && !calPoint1 && !currentMousePos) return; // Allow drawing background even if no path
 
-                if (path.length >= 2) {
+                // Draw existing path
+                if (path.length >= 1) {
                     this.ctx.beginPath();
                     this.ctx.strokeStyle = '#aaa';
                     this.ctx.lineWidth = 2;
@@ -1032,14 +1032,24 @@
                         this.ctx.fill();
                     }
                 }
-            };
 
-            // --- Modal Logic ---
-            inputs.openSettingsBtn.addEventListener('click', () => {
-                inputs.settingsModal.style.display = 'block';
-                loadModalValues();
-                drawPreview();
-            });
+                // Draw Rubber-band line (Preview next segment)
+                if (path.length > 0 && currentMousePos) {
+                    const lastPt = path[path.length - 1];
+                    const pLast = this.toScreen(lastPt.x, lastPt.y);
+                    const pCurr = this.toScreen(currentMousePos.x, currentMousePos.y);
+
+                    this.ctx.beginPath();
+                    this.ctx.strokeStyle = '#666'; // Preview line color
+                    this.ctx.lineWidth = 1;
+                    this.ctx.setLineDash([2, 2]); // Finer dash for preview
+
+                    this.ctx.moveTo(pLast.x, pLast.y);
+                    this.ctx.lineTo(pCurr.x, pCurr.y);
+                    this.ctx.stroke();
+                    this.ctx.setLineDash([]);
+                }
+            };
             inputs.closeModal.addEventListener('click', () => {
                 inputs.settingsModal.style.display = 'none';
             });
@@ -1586,6 +1596,8 @@
                 }
             });
 
+            let currentMousePos = null; // Track current mouse position in world coordinates
+
             function startDrawing(e) {
                 if (calibrationState === 'point1') {
                     const rect = canvas.getBoundingClientRect();
@@ -1627,14 +1639,30 @@
             }
 
             function draw(e) {
-                if (!isDrawing) return;
-                addPoint(e, true);
+                const rect = canvas.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const y = e.clientY - rect.top;
+                currentMousePos = renderer.toWorld(x, y);
+
+                if (isDrawing) {
+                    addPoint(e, true);
+                } else {
+                    update(); // Update to show rubber-band line
+                }
             }
 
             function stopDrawing() {
                 isDrawing = false;
                 update();
             }
+
+            // Override mouseleave to clear rubber-band
+            canvas.removeEventListener('mouseleave', stopDrawing); // Remove old listener
+            canvas.addEventListener('mouseleave', (e) => {
+                isDrawing = false;
+                currentMousePos = null;
+                update();
+            });
 
             function addPoint(e, isDragging = false) {
                 const rect = canvas.getBoundingClientRect();
@@ -1655,12 +1683,13 @@
 
             function update() {
                 renderer.clear();
-                renderer.drawPath(path);
+                renderer.drawPath(path, currentMousePos);
                 if (path.length >= 2) {
                     const states = engine.simulate(path, vehicle);
                     renderer.drawSimulation(states, vehicle);
                 }
             }
+
 
             class DxfWriter {
                 constructor(version = 'AC1032') {

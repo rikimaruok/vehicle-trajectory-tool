@@ -1,0 +1,1875 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>車両軌跡作図システム (MVP)</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        #sidebar {
+            width: 300px;
+            background: #f0f0f0;
+            padding: 20px;
+            box-shadow: 2px 0 5px rgba(0, 0, 0, 0.1);
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            z-index: 10;
+            overflow-y: auto;
+        }
+
+        #canvas-container {
+            flex-grow: 1;
+            position: relative;
+            background: #fff;
+            cursor: crosshair;
+        }
+
+        canvas {
+            display: block;
+        }
+
+        .control-group {
+            background: #fff;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+
+        h2 {
+            margin-top: 0;
+            font-size: 1.2rem;
+        }
+
+        h3 {
+            margin-top: 10px;
+            margin-bottom: 5px;
+            font-size: 1.0rem;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 5px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-size: 0.9rem;
+        }
+
+        input[type="number"],
+        select {
+            width: 100%;
+            padding: 5px;
+            box-sizing: border-box;
+            margin-bottom: 10px;
+        }
+
+        input[type="checkbox"] {
+            margin-right: 5px;
+        }
+
+        input[type="range"] {
+            width: 100%;
+        }
+
+        button {
+            width: 100%;
+            padding: 10px;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 1rem;
+            margin-bottom: 5px;
+        }
+
+        button:hover {
+            background: #0056b3;
+        }
+
+        button.secondary {
+            background: #6c757d;
+        }
+
+        button.secondary:hover {
+            background: #5a6268;
+        }
+
+        .instructions {
+            font-size: 0.85rem;
+            color: #555;
+            line-height: 1.4;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 4px;
+        }
+
+        .legend-color {
+            width: 15px;
+            height: 15px;
+            margin-right: 8px;
+            border: 1px solid #ccc;
+        }
+
+        /* Modal Styles */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 100;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0, 0, 0, 0.4);
+        }
+
+        .modal-content {
+            background-color: #fefefe;
+            margin: 5% auto;
+            padding: 20px;
+            border: 1px solid #888;
+            width: 80%;
+            max-width: 900px;
+            border-radius: 8px;
+            display: flex;
+            flex-direction: column;
+            max-height: 90vh;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #ddd;
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+        }
+
+        .modal-body {
+            display: flex;
+            gap: 20px;
+            overflow-y: auto;
+        }
+
+        .editor-panel {
+            flex: 1;
+            padding-right: 20px;
+            border-right: 1px solid #eee;
+        }
+
+        .preview-panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+        }
+
+        #previewCanvas {
+            border: 1px solid #ccc;
+            background: #fafafa;
+            width: 100%;
+            height: 300px;
+        }
+
+        .close {
+            color: #aaa;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .close:hover,
+        .close:focus {
+            color: black;
+            text-decoration: none;
+            cursor: pointer;
+        }
+
+        .form-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .form-row label {
+            margin-bottom: 0;
+            flex: 2;
+        }
+
+        .form-row input {
+            flex: 1;
+            margin-bottom: 0;
+        }
+
+        .unit {
+            margin-left: 5px;
+            color: #666;
+            font-size: 0.8rem;
+            width: 30px;
+        }
+    </style>
+    <!-- PDF.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script>
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    </script>
+</head>
+
+<body>
+
+    <div id="sidebar">
+        <h2>車両設定</h2>
+
+        <div class="control-group">
+            <label>車両プリセット (Vehicle Preset)</label>
+            <select id="vehiclePreset">
+                <option value="custom">カスタム (Custom)</option>
+                <!-- Options will be populated by JS -->
+            </select>
+        </div>
+
+        <div class="control-group">
+            <button id="openSettingsBtn">車両諸元設定 (Vehicle Settings)</button>
+        </div>
+
+        <div class="control-group">
+            <h3>背景図面 (Background)</h3>
+            <input type="file" id="bgFileInput" accept="image/*,application/pdf">
+            <label>不透明度 (Opacity)</label>
+            <input type="range" id="bgOpacity" min="0" max="1" step="0.1" value="0.5">
+            <button id="calibrateBtn" class="secondary">尺度調整 (Calibrate)</button>
+            <div id="calibrationStatus" class="instructions hidden" style="color: blue;">
+                点Aをクリックしてください...
+            </div>
+        </div>
+
+        <div class="control-group">
+            <button id="undoBtn" class="secondary">1つ戻る (Undo)</button>
+            <button id="clearBtn" class="secondary">全クリア</button>
+            <button id="exportDxfBtn" style="background: #28a745; margin-top: 10px;">DXF エクスポート (Export DXF)</button>
+        </div>
+
+        <div class="instructions">
+            <strong>凡例:</strong><br>
+            <div class="legend-item">
+                <div class="legend-color" style="background:red"></div>トラクター後輪
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background:green"></div>トレーラー後輪
+            </div>
+            <div class="legend-item">
+                <div class="legend-color"
+                    style="background:blue; border:1px dashed blue; height:0; border-top:2px dashed blue;"></div>車体外郭
+                (Swept Path)
+            </div>
+            <br>
+            <strong>使い方:</strong><br>
+            1. <strong>クリック</strong>: 通過点を追加。<br>
+            2. <strong>ドラッグ</strong>: 自由に描画。<br>
+            3. 「1つ戻る」で直前の点を取り消し。<br>
+            4. 「背景図面」でPDF/画像を読み込み。<br>
+            5. 「尺度調整」で図面上の距離を指定。<br>
+        </div>
+    </div>
+
+    <div id="canvas-container">
+        <canvas id="mainCanvas"></canvas>
+    </div>
+
+    <!-- Vehicle Settings Modal -->
+    <div id="settingsModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>車両諸元設定 (Vehicle Specifications)</h2>
+                <span class="close">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="editor-panel">
+                    <h3>プリセット (Preset)</h3>
+                    <select id="modalPreset" style="width: 100%; margin-bottom: 15px;">
+                        <option value="custom">カスタム (Custom)</option>
+                    </select>
+
+                    <h3>トラクター (Tractor)</h3>
+                    <div class="form-row"><label>全幅 (Width)</label><input type="number" id="m_width" step="0.01"><span
+                            class="unit">m</span></div>
+                    <div class="form-row"><label>ホイールベース (Wheelbase)</label><input type="number" id="m_wheelbase"
+                            step="0.01"><span class="unit">m</span></div>
+                    <div class="form-row"><label>フロントオーバーハング (Front OH)</label><input type="number" id="m_overhangFront"
+                            step="0.01"><span class="unit">m</span></div>
+                    <div class="form-row"><label>リアオーバーハング (Rear OH)</label><input type="number" id="m_overhangRear"
+                            step="0.01"><span class="unit">m</span></div>
+                    <div class="form-row"><label>最大操舵角 (Max Steer)</label><input type="number" id="m_maxSteering"
+                            step="1"><span class="unit">deg</span></div>
+
+                    <h3>トレーラー (Trailer)</h3>
+                    <div class="form-row">
+                        <label><input type="checkbox" id="m_hasTrailer"> トレーラー連結 (Enable)</label>
+                    </div>
+                    <div id="m_trailerParams">
+                        <div class="form-row"><label>全幅 (Width)</label><input type="number" id="m_trailerWidth"
+                                step="0.01"><span class="unit">m</span></div>
+                        <div class="form-row"><label>ホイールベース (Kingpin to Axle)</label><input type="number"
+                                id="m_trailerWheelbase" step="0.01"><span class="unit">m</span></div>
+                        <div class="form-row"><label>フロントオーバーハング (Front OH)</label><input type="number"
+                                id="m_trailerOverhangFront" step="0.01"><span class="unit">m</span></div>
+                        <div class="form-row"><label>リアオーバーハング (Rear OH)</label><input type="number"
+                                id="m_trailerOverhangRear" step="0.01"><span class="unit">m</span></div>
+                        <div class="form-row"><label>連結点オフセット (Hitch Offset)</label><input type="number"
+                                id="m_hitchOffset" step="0.01"><span class="unit">m</span></div>
+                    </div>
+                </div>
+                <div class="preview-panel">
+                    <h3>車両形状図 (Schematic)</h3>
+                    <div style="margin-bottom: 5px;">
+                        <label style="display:inline-block; margin-right: 15px;">
+                            <input type="radio" name="viewMode" value="top" checked> 上面図 (Top View)
+                        </label>
+                        <label style="display:inline-block;">
+                            <input type="radio" name="viewMode" value="side"> 側面図 (Side View)
+                        </label>
+                    </div>
+                    <canvas id="previewCanvas"></canvas>
+                    <div style="margin-top: 10px; font-size: 0.9rem; color: #666;">
+                        ※ 寸法を変更すると図に反映されます
+                    </div>
+                    <button id="saveSettingsBtn" style="margin-top: 20px;">設定を適用 (Apply)</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // エラーハンドリング
+        window.onerror = function (message, source, lineno, colno, error) {
+            alert('エラーが発生しました: ' + message);
+        };
+
+        /* 車両プリセットデータ (推定値含む) */
+        const vehiclePresets = [
+            {
+                id: '2t_truck',
+                name: '2tトラック (2t Truck)',
+                type: 'single',
+                params: {
+                    wheelbase: 2.5,
+                    width: 1.7,
+                    overhangFront: 1.0,
+                    overhangRear: 1.5,
+                    maxSteeringAngle: 35
+                }
+            },
+            {
+                id: '4t_truck',
+                name: '4tトラック (4t Truck)',
+                type: 'single',
+                params: {
+                    wheelbase: 3.8,
+                    width: 2.2,
+                    overhangFront: 1.2,
+                    overhangRear: 2.2,
+                    maxSteeringAngle: 40
+                }
+            },
+            {
+                id: '10t_truck',
+                name: '10tトラック (10t Truck)',
+                type: 'single',
+                params: {
+                    wheelbase: 5.5,
+                    width: 2.5,
+                    overhangFront: 1.5,
+                    overhangRear: 2.8,
+                    maxSteeringAngle: 45
+                }
+            },
+            {
+                id: 'semi_trailer_40ft',
+                name: 'セミトレーラー 40ft (Semi-Trailer 40ft)',
+                type: 'trailer',
+                params: {
+                    wheelbase: 3.5, // トラクター
+                    width: 2.5,
+                    overhangFront: 1.3,
+                    overhangRear: 1.0, // トラクター後部
+                    maxSteeringAngle: 45,
+                    // トレーラー部分
+                    trailerWheelbase: 8.5, // キングピンから車軸群中心
+                    trailerWidth: 2.5,
+                    trailerOverhangRear: 2.5,
+                    trailerOverhangFront: 0.0,
+                    hitchOffset: 0.0 // 後車軸上の場合
+                }
+            }
+        ];
+
+        // --- Classes ---
+
+        class VehicleModel {
+            constructor() {
+                // 初期値 (2tトラック相当)
+                this.wheelbase = 2.5;
+                this.width = 1.7;
+                this.overhangFront = 1.0;
+                this.overhangRear = 1.5;
+                this.maxSteeringAngle = 35 * (Math.PI / 180); // Radian
+
+                // トレーラー用パラメータ
+                this.hasTrailer = false;
+                this.trailerWheelbase = 5.0; // 連結点からトレーラー車軸まで
+                this.trailerWidth = 2.5;
+                this.trailerOverhangRear = 1.5;
+                this.trailerOverhangFront = 0.0; // New
+                this.hitchOffset = 0.0; // トラクター後車軸からの連結点オフセット（正：後ろ、負：前）
+            }
+        }
+
+        class SimulationEngine {
+            constructor() {
+                this.stepSize = 0.1;
+            }
+
+            transformPoint(lx, ly, wx, wy, heading) {
+                return {
+                    x: wx + lx * Math.cos(heading) - ly * Math.sin(heading),
+                    y: wy + lx * Math.sin(heading) + ly * Math.cos(heading)
+                };
+            }
+
+            simulate(path, vehicle) {
+                if (!path || path.length < 2) return [];
+
+                const states = [];
+
+                let currentPos = { x: path[0].x, y: path[0].y };
+                let currentHeading = Math.atan2(path[1].y - path[0].y, path[1].x - path[0].x);
+
+                // トレーラー初期状態（トラクターと一直線と仮定）
+                let trailerHeading = currentHeading;
+                // 連結点位置
+                let hitchPos = {
+                    x: currentPos.x - vehicle.hitchOffset * Math.cos(currentHeading),
+                    y: currentPos.y - vehicle.hitchOffset * Math.sin(currentHeading)
+                };
+                // トレーラー車軸位置
+                let trailerPos = {
+                    x: hitchPos.x - vehicle.trailerWheelbase * Math.cos(trailerHeading),
+                    y: hitchPos.y - vehicle.trailerWheelbase * Math.sin(trailerHeading)
+                };
+
+                let targetIndex = 1;
+
+                const maxSteps = 10000;
+                for (let i = 0; i < maxSteps; i++) {
+                    const distToEnd = Math.hypot(path[path.length - 1].x - currentPos.x, path[path.length - 1].y - currentPos.y);
+                    if (distToEnd < 0.5) break;
+
+                    // 1. Pure Pursuit
+                    const targetPt = path[targetIndex];
+                    const distToTarget = Math.hypot(targetPt.x - currentPos.x, targetPt.y - currentPos.y);
+
+                    if (distToTarget < 1.0 && targetIndex < path.length - 1) {
+                        targetIndex++;
+                    }
+
+                    const angleToTarget = Math.atan2(targetPt.y - currentPos.y, targetPt.x - currentPos.x);
+                    let alpha = angleToTarget - currentHeading;
+                    while (alpha > Math.PI) alpha -= 2 * Math.PI;
+                    while (alpha < -Math.PI) alpha += 2 * Math.PI;
+
+                    // maxSteeringAngle is already in radians in VehicleModel
+                    const maxSteerRad = vehicle.maxSteeringAngle;
+                    let steeringAngle = Math.atan(2 * vehicle.wheelbase * Math.sin(alpha) / distToTarget);
+
+                    if (steeringAngle > maxSteerRad) steeringAngle = maxSteerRad;
+                    if (steeringAngle < -maxSteerRad) steeringAngle = -maxSteerRad;
+
+                    // 2. トラクター移動
+                    const dx = this.stepSize * Math.cos(currentHeading);
+                    const dy = this.stepSize * Math.sin(currentHeading);
+                    const dHeading = (this.stepSize / vehicle.wheelbase) * Math.tan(steeringAngle);
+
+                    const nextPos = { x: currentPos.x + dx, y: currentPos.y + dy };
+                    const nextHeading = currentHeading + dHeading;
+
+                    // 3. トレーラー移動
+                    let nextTrailerPos = { ...trailerPos };
+                    let nextTrailerHeading = trailerHeading;
+
+                    if (vehicle.hasTrailer) {
+                        // 新しい連結点位置
+                        const nextHitchPos = {
+                            x: nextPos.x - vehicle.hitchOffset * Math.cos(nextHeading),
+                            y: nextPos.y - vehicle.hitchOffset * Math.sin(nextHeading)
+                        };
+
+                        // トレーラーの移動
+                        const dxT = nextHitchPos.x - trailerPos.x;
+                        const dyT = nextHitchPos.y - trailerPos.y;
+
+                        const desiredHeading = Math.atan2(dyT, dxT);
+
+                        nextTrailerHeading = desiredHeading;
+                        nextTrailerPos = {
+                            x: nextHitchPos.x - vehicle.trailerWheelbase * Math.cos(nextTrailerHeading),
+                            y: nextHitchPos.y - vehicle.trailerWheelbase * Math.sin(nextTrailerHeading)
+                        };
+                    }
+
+                    // 4. 包絡線（Envelope）計算
+                    const trFront = vehicle.wheelbase + vehicle.overhangFront;
+                    const trRear = -vehicle.overhangRear;
+                    const trHalfW = vehicle.width / 2;
+
+                    const tractorCorners = {
+                        fl: this.transformPoint(trFront, trHalfW, currentPos.x, currentPos.y, currentHeading),
+                        fr: this.transformPoint(trFront, -trHalfW, currentPos.x, currentPos.y, currentHeading),
+                        rl: this.transformPoint(trRear, trHalfW, currentPos.x, currentPos.y, currentHeading),
+                        rr: this.transformPoint(trRear, -trHalfW, currentPos.x, currentPos.y, currentHeading)
+                    };
+
+                    let trailerCorners = null;
+                    if (vehicle.hasTrailer) {
+                        const tlFront = vehicle.trailerWheelbase; // 連結点から前方（便宜上）
+                        const tlRear = -vehicle.trailerOverhangRear;
+                        const tlHalfW = vehicle.trailerWidth / 2;
+
+                        trailerCorners = {
+                            fl: this.transformPoint(vehicle.trailerWheelbase, tlHalfW, trailerPos.x, trailerPos.y, trailerHeading),
+                            fr: this.transformPoint(vehicle.trailerWheelbase, -tlHalfW, trailerPos.x, trailerPos.y, trailerHeading),
+                            rl: this.transformPoint(tlRear, tlHalfW, trailerPos.x, trailerPos.y, trailerHeading),
+                            rr: this.transformPoint(tlRear, -tlHalfW, trailerPos.x, trailerPos.y, trailerHeading)
+                        };
+                    }
+
+                    // 更新
+                    currentPos = nextPos;
+                    currentHeading = nextHeading;
+                    trailerPos = nextTrailerPos;
+                    trailerHeading = nextTrailerHeading;
+
+                    states.push({
+                        x: currentPos.x,
+                        y: currentPos.y,
+                        heading: currentHeading,
+                        steeringAngle: steeringAngle,
+                        trailer: vehicle.hasTrailer ? {
+                            x: trailerPos.x,
+                            y: trailerPos.y,
+                            heading: trailerHeading
+                        } : null,
+                        envelope: {
+                            tractor: tractorCorners,
+                            trailer: trailerCorners
+                        }
+                    });
+                }
+
+                return states;
+            }
+        }
+
+        class Renderer {
+            constructor(canvas) {
+                this.canvas = canvas;
+                this.ctx = canvas.getContext('2d');
+                this.width = canvas.width;
+                this.height = canvas.height;
+                this.scale = 20;
+                this.offsetX = 0;
+                this.offsetY = 0;
+
+                // Background
+                this.bgImage = null;
+                this.bgOpacity = 0.5;
+                this.bgX = 0;
+                this.bgY = 0;
+            }
+
+            resize() {
+                if (this.canvas.parentElement) {
+                    this.width = this.canvas.parentElement.clientWidth;
+                    this.height = this.canvas.parentElement.clientHeight;
+                    this.canvas.width = this.width;
+                    this.canvas.height = this.height;
+                }
+            }
+
+            clear() {
+                this.ctx.clearRect(0, 0, this.width, this.height);
+            }
+
+            setBackground(image) {
+                this.bgImage = image;
+                // Reset background position to center
+                this.bgX = -image.width / 2;
+                this.bgY = -image.height / 2;
+            }
+
+            toScreen(x, y) {
+                return {
+                    x: x * this.scale + this.offsetX + this.width / 2,
+                    y: y * this.scale + this.offsetY + this.height / 2
+                };
+            }
+
+            toWorld(screenX, screenY) {
+                return {
+                    x: (screenX - this.offsetX - this.width / 2) / this.scale,
+                    y: (screenY - this.offsetY - this.height / 2) / this.scale
+                };
+            }
+
+            drawPath(path) {
+                // Draw Background
+                if (this.bgImage) {
+                    this.ctx.save();
+                    this.ctx.globalAlpha = this.bgOpacity;
+
+                    const worldW = this.bgImage.width * bgMetersPerPixel;
+                    const worldH = this.bgImage.height * bgMetersPerPixel;
+
+                    // Draw centered at (0,0) world
+                    const screenTopLeft = this.toScreen(-worldW / 2, -worldH / 2);
+                    const screenBottomRight = this.toScreen(worldW / 2, worldH / 2);
+
+                    this.ctx.drawImage(this.bgImage,
+                        screenTopLeft.x, screenTopLeft.y,
+                        screenBottomRight.x - screenTopLeft.x,
+                        screenBottomRight.y - screenTopLeft.y
+                    );
+
+                    this.ctx.restore();
+                }
+
+                // Draw Calibration Points
+                if (calPoint1) {
+                    const p1 = this.toScreen(calPoint1.x, calPoint1.y);
+                    this.ctx.fillStyle = 'blue';
+                    this.ctx.beginPath(); this.ctx.arc(p1.x, p1.y, 5, 0, Math.PI * 2); this.ctx.fill();
+                }
+                if (calPoint2) {
+                    const p2 = this.toScreen(calPoint2.x, calPoint2.y);
+                    this.ctx.fillStyle = 'blue';
+                    this.ctx.beginPath(); this.ctx.arc(p2.x, p2.y, 5, 0, Math.PI * 2); this.ctx.fill();
+
+                    // Line
+                    if (calPoint1) {
+                        const p1 = this.toScreen(calPoint1.x, calPoint1.y);
+                        this.ctx.strokeStyle = 'blue';
+                        this.ctx.beginPath(); this.ctx.moveTo(p1.x, p1.y); this.ctx.lineTo(p2.x, p2.y); this.ctx.stroke();
+                    }
+                }
+
+                if (path.length < 2 && !calPoint1) return; // Allow drawing background even if no path
+
+                if (path.length >= 2) {
+                    this.ctx.beginPath();
+                    this.ctx.strokeStyle = '#aaa';
+                    this.ctx.lineWidth = 2;
+                    this.ctx.setLineDash([5, 5]);
+
+                    const start = this.toScreen(path[0].x, path[0].y);
+                    this.ctx.moveTo(start.x, start.y);
+
+                    for (let i = 1; i < path.length; i++) {
+                        const p = this.toScreen(path[i].x, path[i].y);
+                        this.ctx.lineTo(p.x, p.y);
+                    }
+
+                    this.ctx.stroke();
+                    this.ctx.setLineDash([]);
+
+                    this.ctx.fillStyle = '#666';
+                    for (const pt of path) {
+                        const p = this.toScreen(pt.x, pt.y);
+                        this.ctx.beginPath();
+                        this.ctx.arc(p.x, p.y, 3, 0, Math.PI * 2);
+                        this.ctx.fill();
+                    }
+                }
+            }
+
+            drawSimulation(states, vehicle) {
+                if (!states || states.length === 0) return;
+
+                // 0. Swept Path (包絡線) - 青い破線
+                this.ctx.strokeStyle = 'blue';
+                this.ctx.lineWidth = 1;
+                this.ctx.setLineDash([3, 3]);
+
+                this.drawEnvelopeLine(states, s => s.envelope.tractor.fl);
+                this.drawEnvelopeLine(states, s => s.envelope.tractor.fr);
+
+                if (vehicle.hasTrailer) {
+                    // トレーラーの左後・右後
+                    this.drawEnvelopeLine(states, s => s.envelope.trailer.rl);
+                    this.drawEnvelopeLine(states, s => s.envelope.trailer.rr);
+                } else {
+                    // 単車の場合はトラクターの後ろも描く
+                    this.drawEnvelopeLine(states, s => s.envelope.tractor.rl);
+                    this.drawEnvelopeLine(states, s => s.envelope.tractor.rr);
+                }
+
+                this.ctx.setLineDash([]);
+
+                // 1. トラクター後輪軌跡
+                this.ctx.beginPath();
+                this.ctx.strokeStyle = 'red';
+                this.ctx.lineWidth = 2;
+                const start = this.toScreen(states[0].x, states[0].y);
+                this.ctx.moveTo(start.x, start.y);
+                for (let i = 1; i < states.length; i++) {
+                    const p = this.toScreen(states[i].x, states[i].y);
+                    this.ctx.lineTo(p.x, p.y);
+                }
+                this.ctx.stroke();
+
+                // 2. トレーラー後輪軌跡
+                if (vehicle.hasTrailer) {
+                    this.ctx.beginPath();
+                    this.ctx.strokeStyle = 'green';
+                    this.ctx.lineWidth = 2;
+                    const tStart = this.toScreen(states[0].trailer.x, states[0].trailer.y);
+                    this.ctx.moveTo(tStart.x, tStart.y);
+                    for (let i = 1; i < states.length; i++) {
+                        const p = this.toScreen(states[i].trailer.x, states[i].trailer.y);
+                        this.ctx.lineTo(p.x, p.y);
+                    }
+                    this.ctx.stroke();
+                }
+
+                // 3. 車両描画
+                const step = Math.floor(states.length / 10) || 1;
+                for (let i = 0; i < states.length; i += step) {
+                    this.drawVehicleBody(states[i], vehicle, i === states.length - 1);
+                }
+                this.drawVehicleBody(states[states.length - 1], vehicle, true);
+            }
+
+            drawEnvelopeLine(states, selector) {
+                this.ctx.beginPath();
+                const start = this.toScreen(selector(states[0]).x, selector(states[0]).y);
+                this.ctx.moveTo(start.x, start.y);
+                for (let i = 1; i < states.length; i++) {
+                    const pt = selector(states[i]);
+                    const p = this.toScreen(pt.x, pt.y);
+                    this.ctx.lineTo(p.x, p.y);
+                }
+                this.ctx.stroke();
+            }
+
+            drawVehicleBody(state, vehicle, isLast) {
+                // --- トラクター ---
+                const { x, y, heading } = state;
+                const screenPos = this.toScreen(x, y);
+
+                this.ctx.save();
+                this.ctx.translate(screenPos.x, screenPos.y);
+                this.ctx.rotate(heading);
+
+                const lenFront = vehicle.wheelbase + vehicle.overhangFront;
+                const lenRear = vehicle.overhangRear;
+                const halfWidth = vehicle.width / 2;
+
+                this.ctx.fillStyle = isLast ? 'rgba(0, 123, 255, 0.5)' : 'rgba(0, 123, 255, 0.1)';
+                this.ctx.strokeStyle = isLast ? '#0056b3' : 'rgba(0, 86, 179, 0.3)';
+                this.ctx.lineWidth = 1;
+
+                // 車体
+                this.ctx.beginPath();
+                this.ctx.rect(-lenRear * this.scale, -halfWidth * this.scale, (lenFront + lenRear) * this.scale, vehicle.width * this.scale);
+                this.ctx.fill();
+                this.ctx.stroke();
+
+                // 車軸
+                this.ctx.beginPath();
+                this.ctx.strokeStyle = 'black';
+                this.ctx.moveTo(0, -halfWidth * this.scale);
+                this.ctx.lineTo(0, halfWidth * this.scale);
+                this.ctx.stroke();
+                this.ctx.moveTo(vehicle.wheelbase * this.scale, -halfWidth * this.scale);
+                this.ctx.lineTo(vehicle.wheelbase * this.scale, halfWidth * this.scale);
+                this.ctx.stroke();
+
+                this.ctx.restore();
+
+                // --- トレーラー ---
+                if (vehicle.hasTrailer && state.trailer) {
+                    const tx = state.trailer.x;
+                    const ty = state.trailer.y;
+                    const th = state.trailer.heading;
+                    const tScreenPos = this.toScreen(tx, ty);
+
+                    this.ctx.save();
+                    this.ctx.translate(tScreenPos.x, tScreenPos.y);
+                    this.ctx.rotate(th);
+
+                    const tLenFront = vehicle.trailerWheelbase;
+                    const tLenRear = vehicle.trailerOverhangRear;
+                    const tHalfWidth = vehicle.trailerWidth / 2;
+
+                    this.ctx.fillStyle = isLast ? 'rgba(40, 167, 69, 0.5)' : 'rgba(40, 167, 69, 0.1)';
+                    this.ctx.strokeStyle = isLast ? '#1e7e34' : 'rgba(40, 167, 69, 0.3)';
+
+                    // 車体
+                    this.ctx.beginPath();
+                    this.ctx.rect(-tLenRear * this.scale, -tHalfWidth * this.scale, (tLenFront + tLenRear) * this.scale, vehicle.trailerWidth * this.scale);
+                    this.ctx.fill();
+                    this.ctx.stroke();
+
+                    // 車軸
+                    this.ctx.beginPath();
+                    this.ctx.strokeStyle = 'black';
+                    this.ctx.moveTo(0, -tHalfWidth * this.scale);
+                    this.ctx.lineTo(0, tHalfWidth * this.scale);
+
+                    this.ctx.stroke();
+
+                    this.ctx.restore();
+                }
+            }
+        }
+
+        // --- Main Logic ---
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const canvas = document.getElementById('mainCanvas');
+            const renderer = new Renderer(canvas);
+            const vehicle = new VehicleModel();
+            const engine = new SimulationEngine();
+
+            let path = [];
+            let isDrawing = false;
+
+            // Background & Calibration Globals
+            let calibrationState = 'none'; // 'none', 'point1', 'point2'
+            let calPoint1 = null;
+            let calPoint2 = null;
+            let bgImageElement = null;
+            let bgMetersPerPixel = 0.05; // Default
+
+            const inputs = {
+                // Sidebar
+                vehiclePreset: document.getElementById('vehiclePreset'),
+                openSettingsBtn: document.getElementById('openSettingsBtn'),
+                bgFileInput: document.getElementById('bgFileInput'),
+                bgOpacity: document.getElementById('bgOpacity'),
+                calibrateBtn: document.getElementById('calibrateBtn'),
+                calibrationStatus: document.getElementById('calibrationStatus'),
+                undoBtn: document.getElementById('undoBtn'),
+                clearBtn: document.getElementById('clearBtn'),
+                exportDxfBtn: document.getElementById('exportDxfBtn'),
+
+                // Modal
+                settingsModal: document.getElementById('settingsModal'),
+                closeModal: document.querySelector('.close'),
+                saveSettingsBtn: document.getElementById('saveSettingsBtn'),
+                modalPreset: document.getElementById('modalPreset'),
+
+                // Modal Inputs
+                m_width: document.getElementById('m_width'),
+                m_wheelbase: document.getElementById('m_wheelbase'),
+                m_overhangFront: document.getElementById('m_overhangFront'),
+                m_overhangRear: document.getElementById('m_overhangRear'),
+                m_maxSteering: document.getElementById('m_maxSteering'),
+                m_hasTrailer: document.getElementById('m_hasTrailer'),
+                m_trailerWidth: document.getElementById('m_trailerWidth'),
+                m_trailerWheelbase: document.getElementById('m_trailerWheelbase'),
+                m_trailerOverhangFront: document.getElementById('m_trailerOverhangFront'),
+                m_trailerOverhangRear: document.getElementById('m_trailerOverhangRear'),
+                m_hitchOffset: document.getElementById('m_hitchOffset'),
+                m_trailerParams: document.getElementById('m_trailerParams')
+            };
+
+            // --- Background & Calibration Logic ---
+
+            inputs.bgFileInput.addEventListener('change', async (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+
+                if (file.type === 'application/pdf') {
+                    const fileReader = new FileReader();
+                    fileReader.onload = async function () {
+                        const typedarray = new Uint8Array(this.result);
+                        const pdf = await pdfjsLib.getDocument(typedarray).promise;
+                        const page = await pdf.getPage(1);
+                        const viewport = page.getViewport({ scale: 2.0 }); // High res
+
+                        const canvas = document.createElement('canvas');
+                        const context = canvas.getContext('2d');
+                        canvas.height = viewport.height;
+                        canvas.width = viewport.width;
+
+                        await page.render({ canvasContext: context, viewport: viewport }).promise;
+
+                        bgImageElement = new Image();
+                        bgImageElement.src = canvas.toDataURL();
+                        bgImageElement.onload = () => {
+                            renderer.setBackground(bgImageElement);
+                            bgMetersPerPixel = 0.05;
+                            update();
+                        };
+                    };
+                    fileReader.readAsArrayBuffer(file);
+                } else {
+                    // Image
+                    const reader = new FileReader();
+                    reader.onload = (event) => {
+                        bgImageElement = new Image();
+                        bgImageElement.onload = () => {
+                            renderer.setBackground(bgImageElement);
+                            bgMetersPerPixel = 0.05;
+                            update();
+                        };
+                        bgImageElement.src = event.target.result;
+                    };
+                    reader.readAsDataURL(file);
+                }
+            });
+
+            inputs.bgOpacity.addEventListener('input', (e) => {
+                renderer.bgOpacity = parseFloat(e.target.value);
+                update();
+            });
+
+            inputs.calibrateBtn.addEventListener('click', () => {
+                if (!bgImageElement) {
+                    alert('先に背景画像を読み込んでください (Please load a background first)');
+                    return;
+                }
+                calibrationState = 'point1';
+                inputs.calibrationStatus.textContent = '図面上の点Aをクリックしてください (Click Point A)';
+                inputs.calibrationStatus.classList.remove('hidden');
+                isDrawing = false; // Disable drawing mode
+            });
+
+            // Override Renderer drawPath to support custom image scaling
+            renderer.drawPath = function (path) {
+                // Draw Background
+                if (this.bgImage) {
+                    this.ctx.save();
+                    this.ctx.globalAlpha = this.bgOpacity;
+
+                    const worldW = this.bgImage.width * bgMetersPerPixel;
+                    const worldH = this.bgImage.height * bgMetersPerPixel;
+
+                    // Draw centered at (0,0) world
+                    const screenTopLeft = this.toScreen(-worldW / 2, -worldH / 2);
+                    const screenBottomRight = this.toScreen(worldW / 2, worldH / 2);
+
+                    this.ctx.drawImage(this.bgImage,
+                        screenTopLeft.x, screenTopLeft.y,
+                        screenBottomRight.x - screenTopLeft.x,
+                        screenBottomRight.y - screenTopLeft.y
+                    );
+
+                    this.ctx.restore();
+                }
+
+                // Draw Calibration Points
+                if (calPoint1) {
+                    const p1 = this.toScreen(calPoint1.x, calPoint1.y);
+                    this.ctx.fillStyle = 'blue';
+                    this.ctx.beginPath(); this.ctx.arc(p1.x, p1.y, 5, 0, Math.PI * 2); this.ctx.fill();
+                }
+                if (calPoint2) {
+                    const p2 = this.toScreen(calPoint2.x, calPoint2.y);
+                    this.ctx.fillStyle = 'blue';
+                    this.ctx.beginPath(); this.ctx.arc(p2.x, p2.y, 5, 0, Math.PI * 2); this.ctx.fill();
+
+                    // Line
+                    if (calPoint1) {
+                        const p1 = this.toScreen(calPoint1.x, calPoint1.y);
+                        this.ctx.strokeStyle = 'blue';
+                        this.ctx.beginPath(); this.ctx.moveTo(p1.x, p1.y); this.ctx.lineTo(p2.x, p2.y); this.ctx.stroke();
+                    }
+                }
+
+                if (path.length < 2 && !calPoint1) return; // Allow drawing background even if no path
+
+                if (path.length >= 2) {
+                    this.ctx.beginPath();
+                    this.ctx.strokeStyle = '#aaa';
+                    this.ctx.lineWidth = 2;
+                    this.ctx.setLineDash([5, 5]);
+
+                    const start = this.toScreen(path[0].x, path[0].y);
+                    this.ctx.moveTo(start.x, start.y);
+
+                    for (let i = 1; i < path.length; i++) {
+                        const p = this.toScreen(path[i].x, path[i].y);
+                        this.ctx.lineTo(p.x, p.y);
+                    }
+
+                    this.ctx.stroke();
+                    this.ctx.setLineDash([]);
+
+                    this.ctx.fillStyle = '#666';
+                    for (const pt of path) {
+                        const p = this.toScreen(pt.x, pt.y);
+                        this.ctx.beginPath();
+                        this.ctx.arc(p.x, p.y, 3, 0, Math.PI * 2);
+                        this.ctx.fill();
+                    }
+                }
+            };
+
+            // --- Modal Logic ---
+            inputs.openSettingsBtn.addEventListener('click', () => {
+                inputs.settingsModal.style.display = 'block';
+                loadModalValues();
+                drawPreview();
+            });
+            inputs.closeModal.addEventListener('click', () => {
+                inputs.settingsModal.style.display = 'none';
+            });
+            window.addEventListener('click', (e) => {
+                if (e.target == inputs.settingsModal) {
+                    inputs.settingsModal.style.display = 'none';
+                }
+            });
+
+            // Populate Modal Preset
+            vehiclePresets.forEach(preset => {
+                const option = document.createElement('option');
+                option.value = preset.id;
+                option.textContent = preset.name;
+                inputs.modalPreset.appendChild(option);
+            });
+
+            inputs.modalPreset.addEventListener('change', (e) => {
+                const selectedId = e.target.value;
+                if (selectedId === 'custom') return;
+                const preset = vehiclePresets.find(p => p.id === selectedId);
+                if (preset) applyModalPreset(preset);
+            });
+
+            function applyModalPreset(preset) {
+                const p = preset.params;
+                inputs.m_width.value = p.width;
+                inputs.m_wheelbase.value = p.wheelbase;
+                inputs.m_overhangFront.value = p.overhangFront;
+                inputs.m_overhangRear.value = p.overhangRear;
+                inputs.m_maxSteering.value = p.maxSteeringAngle;
+
+                inputs.m_hasTrailer.checked = (preset.type === 'trailer');
+                if (preset.type === 'trailer') {
+                    inputs.m_trailerWidth.value = p.trailerWidth;
+                    inputs.m_trailerWheelbase.value = p.trailerWheelbase;
+                    inputs.m_trailerOverhangFront.value = p.trailerOverhangFront || 0;
+                    inputs.m_trailerOverhangRear.value = p.trailerOverhangRear;
+                    inputs.m_hitchOffset.value = p.hitchOffset || 0;
+                }
+                toggleModalTrailer();
+                drawPreview();
+            }
+
+            function loadModalValues() {
+                inputs.m_width.value = vehicle.width;
+                inputs.m_wheelbase.value = vehicle.wheelbase;
+                inputs.m_overhangFront.value = vehicle.overhangFront;
+                inputs.m_overhangRear.value = vehicle.overhangRear;
+                inputs.m_maxSteering.value = (vehicle.maxSteeringAngle * 180 / Math.PI).toFixed(0);
+
+                inputs.m_hasTrailer.checked = vehicle.hasTrailer;
+                inputs.m_trailerWidth.value = vehicle.trailerWidth;
+                inputs.m_trailerWheelbase.value = vehicle.trailerWheelbase;
+                inputs.m_trailerOverhangFront.value = vehicle.trailerOverhangFront || 0;
+                inputs.m_trailerOverhangRear.value = vehicle.trailerOverhangRear;
+                inputs.m_hitchOffset.value = vehicle.hitchOffset;
+
+                toggleModalTrailer();
+            }
+
+            function saveModalValues() {
+                vehicle.width = parseFloat(inputs.m_width.value);
+                vehicle.wheelbase = parseFloat(inputs.m_wheelbase.value);
+                vehicle.overhangFront = parseFloat(inputs.m_overhangFront.value);
+                vehicle.overhangRear = parseFloat(inputs.m_overhangRear.value);
+                vehicle.maxSteeringAngle = parseFloat(inputs.m_maxSteering.value) * Math.PI / 180;
+
+                vehicle.hasTrailer = inputs.m_hasTrailer.checked;
+                vehicle.trailerWidth = parseFloat(inputs.m_trailerWidth.value);
+                vehicle.trailerWheelbase = parseFloat(inputs.m_trailerWheelbase.value);
+                vehicle.trailerOverhangFront = parseFloat(inputs.m_trailerOverhangFront.value);
+                vehicle.trailerOverhangRear = parseFloat(inputs.m_trailerOverhangRear.value);
+                vehicle.hitchOffset = parseFloat(inputs.m_hitchOffset.value);
+
+                inputs.settingsModal.style.display = 'none';
+                updateInputDisplay();
+                update();
+            }
+
+            inputs.saveSettingsBtn.addEventListener('click', saveModalValues);
+
+            inputs.m_hasTrailer.addEventListener('change', toggleModalTrailer);
+            function toggleModalTrailer() {
+                inputs.m_trailerParams.style.display = inputs.m_hasTrailer.checked ? 'block' : 'none';
+                drawPreview();
+            }
+
+            // Preview Canvas Logic
+            const previewCanvas = document.getElementById('previewCanvas');
+            const pCtx = previewCanvas.getContext('2d');
+            let currentViewMode = 'top';
+
+            document.querySelectorAll('input[name="viewMode"]').forEach(radio => {
+                radio.addEventListener('change', (e) => {
+                    currentViewMode = e.target.value;
+                    drawPreview();
+                });
+            });
+
+            function drawPreview() {
+                // Resize
+                previewCanvas.width = previewCanvas.clientWidth;
+                previewCanvas.height = previewCanvas.clientHeight;
+                const w = previewCanvas.width;
+                const h = previewCanvas.height;
+                pCtx.clearRect(0, 0, w, h);
+
+                // Scale calculation to fit vehicle in canvas
+                const wb = parseFloat(inputs.m_wheelbase.value) || 0;
+                const ohF = parseFloat(inputs.m_overhangFront.value) || 0;
+                const ohR = parseFloat(inputs.m_overhangRear.value) || 0;
+                let totalLen = wb + ohF + ohR;
+                let totalWidth = parseFloat(inputs.m_width.value) || 0;
+
+                if (inputs.m_hasTrailer.checked) {
+                    const tWb = parseFloat(inputs.m_trailerWheelbase.value) || 0;
+                    const tOhR = parseFloat(inputs.m_trailerOverhangRear.value) || 0;
+                    const tOhF = parseFloat(inputs.m_trailerOverhangFront.value) || 0;
+                    const hitch = parseFloat(inputs.m_hitchOffset.value) || 0;
+
+                    const maxFront = Math.max(wb + ohF, hitch + tOhF);
+                    const minRear = Math.min(-ohR, hitch - tWb - tOhR);
+                    totalLen = maxFront - minRear;
+
+                    const tWidth = parseFloat(inputs.m_trailerWidth.value) || 0;
+                    totalWidth = Math.max(totalWidth, tWidth);
+                }
+
+                // Add margins for dimensions
+                const margin = 40;
+                let scaleX = (w - margin * 2) / (totalLen || 1);
+                let scaleY = (h - margin * 2) / (totalWidth || 1);
+
+                // Side View Height Assumption (Max height ~3.5m)
+                if (currentViewMode === 'side') {
+                    scaleY = (h - margin * 2) / 4.0;
+                }
+
+                const scale = Math.min(scaleX, scaleY, 40); // Max scale limit
+
+                const cx = w / 2;
+                const cy = h / 2;
+
+                // Calculate Bounding Box Center in Model Coords to center it
+                let minX = -ohR;
+                let maxX = wb + ohF;
+                if (inputs.m_hasTrailer.checked) {
+                    const tWb = parseFloat(inputs.m_trailerWheelbase.value) || 0;
+                    const tOhR = parseFloat(inputs.m_trailerOverhangRear.value) || 0;
+                    const hitch = parseFloat(inputs.m_hitchOffset.value) || 0;
+                    const tOhF = parseFloat(inputs.m_trailerOverhangFront.value) || 0;
+                    minX = Math.min(minX, hitch - tWb - tOhR);
+                    maxX = Math.max(maxX, hitch + tOhF);
+                }
+
+                const midX = (minX + maxX) / 2;
+
+                const toCanvas = (mx, my) => {
+                    if (currentViewMode === 'side') {
+                        // Side View: Y is Up (negative in Canvas), Ground is at some Y offset
+                        // Let's put ground at cy + 50 (approx)
+                        const groundY = cy + scale * 1.0;
+                        return {
+                            x: cx + (mx - midX) * scale,
+                            y: groundY - my * scale
+                        };
+                    } else {
+                        // Top View
+                        return {
+                            x: cx + (mx - midX) * scale,
+                            y: cy - my * scale
+                        };
+                    }
+                };
+
+                if (currentViewMode === 'side') {
+                    drawSideView(toCanvas, wb, ohF, ohR);
+                } else {
+                    drawTopView(toCanvas, wb, ohF, ohR);
+                }
+            }
+
+            function drawTopView(toCanvas, wb, ohF, ohR) {
+                const width = parseFloat(inputs.m_width.value) || 0;
+
+                // --- Draw Tractor ---
+                // Body
+                pCtx.strokeStyle = '#333';
+                pCtx.lineWidth = 2;
+                const trRearX = -ohR;
+                const trFrontX = wb + ohF;
+
+                const trTL = toCanvas(trFrontX, width / 2);
+                const trBR = toCanvas(trRearX, -width / 2);
+
+                pCtx.strokeRect(Math.min(trTL.x, trBR.x), Math.min(trTL.y, trBR.y), Math.abs(trBR.x - trTL.x), Math.abs(trBR.y - trTL.y));
+
+                // Wheels (Rear Axle at 0, Front at wb)
+                pCtx.fillStyle = '#000';
+                const drawWheel = (wx, wy) => {
+                    const p = toCanvas(wx, wy);
+                    pCtx.fillRect(p.x - 5, p.y - 2, 10, 4);
+                };
+                drawWheel(0, width / 2);
+                drawWheel(0, -width / 2);
+                drawWheel(wb, width / 2);
+                drawWheel(wb, -width / 2);
+
+                // Dimensions (Tractor)
+                const dimY_Top = width / 2 + 0.5; // Above vehicle
+                const dimY_Bottom = -width / 2 - 0.5; // Below vehicle
+
+                // Wheelbase
+                drawDimension(pCtx, toCanvas, 0, dimY_Bottom, wb, dimY_Bottom, wb.toFixed(3));
+                // Front OH
+                drawDimension(pCtx, toCanvas, wb, dimY_Bottom, trFrontX, dimY_Bottom, ohF.toFixed(3));
+                // Rear OH
+                drawDimension(pCtx, toCanvas, trRearX, dimY_Bottom, 0, dimY_Bottom, ohR.toFixed(3));
+                // Width
+                drawDimension(pCtx, toCanvas, trFrontX + 0.5, width / 2, trFrontX + 0.5, -width / 2, width.toFixed(3));
+
+                // --- Draw Trailer ---
+                if (inputs.m_hasTrailer.checked) {
+                    const tWb = parseFloat(inputs.m_trailerWheelbase.value) || 0;
+                    const tWidth = parseFloat(inputs.m_trailerWidth.value) || 0;
+                    const tOhR = parseFloat(inputs.m_trailerOverhangRear.value) || 0;
+                    const hitch = parseFloat(inputs.m_hitchOffset.value) || 0;
+                    const tOhF = parseFloat(inputs.m_trailerOverhangFront.value) || 0;
+
+                    const hitchX = hitch;
+                    const tAxleX = hitchX - tWb;
+                    const tFrontX = hitchX + tOhF;
+                    const tRearX = tAxleX - tOhR;
+
+                    // Body
+                    const tTL = toCanvas(tFrontX, tWidth / 2);
+                    const tBR = toCanvas(tRearX, -tWidth / 2);
+
+                    pCtx.strokeStyle = '#555';
+                    pCtx.strokeRect(Math.min(tTL.x, tBR.x), Math.min(tTL.y, tBR.y), Math.abs(tBR.x - tTL.x), Math.abs(tBR.y - tTL.y));
+
+                    // Connection
+                    const pHitch = toCanvas(hitchX, 0);
+                    pCtx.beginPath();
+                    pCtx.arc(pHitch.x, pHitch.y, 3, 0, Math.PI * 2);
+                    pCtx.fillStyle = 'red';
+                    pCtx.fill();
+
+                    // Wheels (Trailer Axle)
+                    drawWheel(tAxleX, tWidth / 2);
+                    drawWheel(tAxleX, -tWidth / 2);
+
+                    // Dimensions (Trailer)
+                    const tDimY_Top = tWidth / 2 + 0.5;
+
+                    // Trailer Wheelbase (Hitch to Axle)
+                    drawDimension(pCtx, toCanvas, tAxleX, tDimY_Top, hitchX, tDimY_Top, tWb.toFixed(3));
+                    // Trailer Rear OH
+                    drawDimension(pCtx, toCanvas, tRearX, tDimY_Top, tAxleX, tDimY_Top, tOhR.toFixed(3));
+                    // Trailer Front OH (if any)
+                    if (tOhF > 0) {
+                        drawDimension(pCtx, toCanvas, hitchX, tDimY_Top, tFrontX, tDimY_Top, tOhF.toFixed(3));
+                    }
+                    // Hitch Offset (from Rear Axle)
+                    drawDimension(pCtx, toCanvas, 0, 0, hitchX, 0, hitch.toFixed(3), true);
+
+                    // Trailer Width
+                    drawDimension(pCtx, toCanvas, tRearX - 0.5, tWidth / 2, tRearX - 0.5, -tWidth / 2, tWidth.toFixed(3));
+                }
+            }
+
+            function drawSideView(toCanvas, wb, ohF, ohR) {
+                // Assumptions for Side View
+                const cabHeight = 2.8;
+                const chassisHeight = 1.0;
+                const wheelRadius = 0.5;
+                const groundY = 0;
+
+                // --- Draw Tractor ---
+                const trRearX = -ohR;
+                const trFrontX = wb + ohF;
+
+                pCtx.strokeStyle = '#333';
+                pCtx.lineWidth = 2;
+
+                // Chassis
+                const pChassisStart = toCanvas(trRearX, chassisHeight);
+                const pChassisEnd = toCanvas(trFrontX, 0.4); // slightly lower at front? no, flat
+                // Let's draw a simple shape
+                // Rear bumper to Front bumper
+                const pRear = toCanvas(trRearX, chassisHeight);
+                const pFront = toCanvas(trFrontX, chassisHeight);
+
+                // Draw Chassis Line
+                pCtx.beginPath();
+                pCtx.moveTo(toCanvas(trRearX, chassisHeight).x, toCanvas(trRearX, chassisHeight).y);
+                pCtx.lineTo(toCanvas(trFrontX, chassisHeight).x, toCanvas(trFrontX, chassisHeight).y);
+                pCtx.stroke();
+
+                // Draw Cab
+                const cabRearX = wb - 0.5;
+                const pCabBL = toCanvas(cabRearX, chassisHeight); // Bottom Left (Rear)
+                const pCabTR = toCanvas(trFrontX, cabHeight); // Top Right (Front)
+
+                pCtx.strokeRect(
+                    Math.min(pCabBL.x, pCabTR.x),
+                    Math.min(pCabTR.y, pCabBL.y),
+                    Math.abs(pCabTR.x - pCabBL.x),
+                    Math.abs(pCabTR.y - pCabBL.y)
+                );
+
+                // Wheels
+                const drawSideWheel = (wx) => {
+                    const p = toCanvas(wx, wheelRadius);
+                    pCtx.beginPath();
+                    pCtx.arc(p.x, p.y, wheelRadius * 20, 0, Math.PI * 2); // Scale radius? No, use canvas scale
+                    // Wait, radius is in meters (0.5). 
+                    // Need to scale radius length.
+                    const pR = toCanvas(wx + wheelRadius, wheelRadius);
+                    const rPx = Math.abs(pR.x - p.x);
+
+                    pCtx.beginPath();
+                    pCtx.arc(p.x, p.y, rPx, 0, Math.PI * 2);
+                    pCtx.fillStyle = '#333';
+                    pCtx.fill();
+                };
+                drawSideWheel(0);
+                drawSideWheel(wb);
+
+                // Dimensions (Tractor)
+                const dimY = 3.5; // Above Cab
+                const dimY_Low = -0.5; // Below Ground
+
+                // Wheelbase
+                drawDimension(pCtx, toCanvas, 0, dimY_Low, wb, dimY_Low, wb.toFixed(3));
+                // Front OH
+                drawDimension(pCtx, toCanvas, wb, dimY_Low, trFrontX, dimY_Low, ohF.toFixed(3));
+                // Rear OH
+                drawDimension(pCtx, toCanvas, trRearX, dimY_Low, 0, dimY_Low, ohR.toFixed(3));
+
+                // Height (Cab) - Just for show
+                drawDimension(pCtx, toCanvas, trFrontX + 0.5, 0, trFrontX + 0.5, cabHeight, cabHeight.toFixed(3));
+
+
+                // --- Draw Trailer ---
+                if (inputs.m_hasTrailer.checked) {
+                    const tWb = parseFloat(inputs.m_trailerWheelbase.value) || 0;
+                    const tOhR = parseFloat(inputs.m_trailerOverhangRear.value) || 0;
+                    const hitch = parseFloat(inputs.m_hitchOffset.value) || 0;
+                    const tOhF = parseFloat(inputs.m_trailerOverhangFront.value) || 0;
+
+                    const hitchX = hitch;
+                    const tAxleX = hitchX - tWb;
+                    const tFrontX = hitchX + tOhF;
+                    const tRearX = tAxleX - tOhR;
+
+                    const bedHeight = 1.3;
+
+                    // Bed
+                    pCtx.strokeStyle = '#555';
+                    pCtx.beginPath();
+                    pCtx.moveTo(toCanvas(tRearX, bedHeight).x, toCanvas(tRearX, bedHeight).y);
+                    pCtx.lineTo(toCanvas(tFrontX, bedHeight).x, toCanvas(tFrontX, bedHeight).y);
+                    // Go down to hitch
+                    pCtx.lineTo(toCanvas(hitchX, 1.1).x, toCanvas(hitchX, 1.1).y); // Slightly lower at hitch?
+                    pCtx.stroke();
+
+                    // Kingpin
+                    const pHitch = toCanvas(hitchX, 1.1);
+                    pCtx.beginPath();
+                    pCtx.moveTo(pHitch.x, pHitch.y);
+                    pCtx.lineTo(pHitch.x - 5, pHitch.y + 10);
+                    pCtx.lineTo(pHitch.x + 5, pHitch.y + 10);
+                    pCtx.closePath();
+                    pCtx.fillStyle = 'red';
+                    pCtx.fill();
+
+                    // Wheels
+                    drawSideWheel(tAxleX);
+
+                    // Dimensions (Trailer)
+                    const tDimY = 3.5;
+
+                    // Trailer Wheelbase
+                    drawDimension(pCtx, toCanvas, tAxleX, tDimY, hitchX, tDimY, tWb.toFixed(3));
+                    ctx.fillStyle = 'red';
+                    ctx.lineWidth = 1;
+                    ctx.font = '12px sans-serif';
+
+                    // Draw Line
+                    ctx.beginPath();
+                    ctx.moveTo(p1.x, p1.y);
+                    ctx.lineTo(p2.x, p2.y);
+                    ctx.stroke();
+
+                    // Ends (Ticks)
+                    const tickSize = 4;
+                    const dx = p2.x - p1.x;
+                    const dy = p2.y - p1.y;
+                    const angle = Math.atan2(dy, dx);
+
+                    const drawTick = (p) => {
+                        ctx.beginPath();
+                        ctx.moveTo(p.x - tickSize * Math.sin(angle), p.y + tickSize * Math.cos(angle));
+                        ctx.lineTo(p.x + tickSize * Math.sin(angle), p.y - tickSize * Math.cos(angle));
+                        ctx.stroke();
+                    };
+
+                    drawTick(p1);
+                    drawTick(p2);
+
+                    // Text Background
+                    const midX = (p1.x + p2.x) / 2;
+                    const midY = (p1.y + p2.y) / 2;
+                    const textWidth = ctx.measureText(text).width;
+
+                    ctx.fillStyle = 'white';
+                    ctx.fillRect(midX - textWidth / 2 - 2, midY - 6, textWidth + 4, 12);
+
+                    // Text
+                    ctx.fillStyle = 'black';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText(text, midX, midY);
+
+                    ctx.restore();
+                }
+            }
+
+            function drawDimension(ctx, toCanvas, x1, y1, x2, y2, text, isInternal = false) {
+                const p1 = toCanvas(x1, y1);
+                const p2 = toCanvas(x2, y2);
+
+                ctx.save();
+                ctx.strokeStyle = 'red';
+                ctx.fillStyle = 'red';
+                ctx.lineWidth = 1;
+                ctx.font = '12px sans-serif';
+
+                // Draw Line
+                ctx.beginPath();
+                ctx.moveTo(p1.x, p1.y);
+                ctx.lineTo(p2.x, p2.y);
+                ctx.stroke();
+
+                // Ends (Ticks)
+                const tickSize = 4;
+                const dx = p2.x - p1.x;
+                const dy = p2.y - p1.y;
+                const angle = Math.atan2(dy, dx);
+
+                const drawTick = (p) => {
+                    ctx.beginPath();
+                    ctx.moveTo(p.x - tickSize * Math.sin(angle), p.y + tickSize * Math.cos(angle));
+                    ctx.lineTo(p.x + tickSize * Math.sin(angle), p.y - tickSize * Math.cos(angle));
+                    ctx.stroke();
+                };
+
+                drawTick(p1);
+                drawTick(p2);
+
+                // Text Background
+                const midX = (p1.x + p2.x) / 2;
+                const midY = (p1.y + p2.y) / 2;
+                const textWidth = ctx.measureText(text).width;
+
+                ctx.fillStyle = 'white';
+                ctx.fillRect(midX - textWidth / 2 - 2, midY - 6, textWidth + 4, 12);
+
+                // Text
+                ctx.fillStyle = 'black';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(text, midX, midY);
+
+                ctx.restore();
+            }
+
+            // Input listeners for preview
+            [inputs.m_width, inputs.m_wheelbase, inputs.m_overhangFront, inputs.m_overhangRear,
+            inputs.m_trailerWidth, inputs.m_trailerWheelbase, inputs.m_trailerOverhangRear, inputs.m_hitchOffset, inputs.m_trailerOverhangFront]
+                .forEach(inp => inp.addEventListener('input', drawPreview));
+
+
+            // Sidebar Preset Logic
+            vehiclePresets.forEach(preset => {
+                const option = document.createElement('option');
+                option.value = preset.id;
+                option.textContent = preset.name;
+                inputs.vehiclePreset.appendChild(option);
+            });
+
+            inputs.vehiclePreset.addEventListener('change', (e) => {
+                const selectedId = e.target.value;
+                if (selectedId === 'custom') return;
+                const preset = vehiclePresets.find(p => p.id === selectedId);
+                if (preset) {
+                    // Update model directly
+                    vehicle.wheelbase = preset.params.wheelbase;
+                    vehicle.width = preset.params.width;
+                    vehicle.overhangFront = preset.params.overhangFront;
+                    vehicle.overhangRear = preset.params.overhangRear;
+                    vehicle.maxSteeringAngle = preset.params.maxSteeringAngle * Math.PI / 180;
+
+                    if (preset.type === 'trailer') {
+                        vehicle.hasTrailer = true;
+                        vehicle.trailerWheelbase = preset.params.trailerWheelbase;
+                        vehicle.trailerWidth = preset.params.trailerWidth;
+                        vehicle.trailerOverhangRear = preset.params.trailerOverhangRear;
+                        vehicle.trailerOverhangFront = preset.params.trailerOverhangFront || 0;
+                        vehicle.hitchOffset = preset.params.hitchOffset || 0;
+                    } else {
+                        vehicle.hasTrailer = false;
+                    }
+                    update();
+                }
+            });
+
+            function updateInputDisplay() {
+                // Sidebar inputs were removed/simplified
+            }
+
+            window.addEventListener('resize', () => {
+                renderer.resize();
+                update();
+            });
+            renderer.resize();
+
+            canvas.addEventListener('mousedown', startDrawing);
+            canvas.addEventListener('mousemove', draw);
+            canvas.addEventListener('mouseup', stopDrawing);
+            canvas.addEventListener('mouseleave', stopDrawing);
+
+            inputs.clearBtn.addEventListener('click', () => {
+                path = [];
+                update();
+            });
+
+            inputs.undoBtn.addEventListener('click', () => {
+                if (path.length > 0) {
+                    path.pop();
+                    update();
+                }
+            });
+
+            function startDrawing(e) {
+                if (calibrationState === 'point1') {
+                    const rect = canvas.getBoundingClientRect();
+                    const x = e.clientX - rect.left;
+                    const y = e.clientY - rect.top;
+                    calPoint1 = renderer.toWorld(x, y);
+                    calibrationState = 'point2';
+                    inputs.calibrationStatus.textContent = '点Bをクリックしてください (Click Point B)';
+                    update();
+                    return;
+                }
+                if (calibrationState === 'point2') {
+                    const rect = canvas.getBoundingClientRect();
+                    const x = e.clientX - rect.left;
+                    const y = e.clientY - rect.top;
+                    calPoint2 = renderer.toWorld(x, y);
+                    const distWorld = Math.hypot(calPoint2.x - calPoint1.x, calPoint2.y - calPoint1.y);
+                    const distImagePixels = distWorld / bgMetersPerPixel;
+
+                    const realDistStr = prompt("点A-点B間の実際の距離(m)を入力してください (Enter real distance in meters):", "5.0");
+                    if (realDistStr) {
+                        const realDist = parseFloat(realDistStr);
+                        if (realDist > 0) {
+                            bgMetersPerPixel = realDist / distImagePixels;
+                            alert(`尺度を調整しました(Scale updated): 1px = ${bgMetersPerPixel.toFixed(4)} m`);
+                        }
+                    }
+
+                    calibrationState = 'none';
+                    calPoint1 = null;
+                    calPoint2 = null;
+                    inputs.calibrationStatus.classList.add('hidden');
+                    update();
+                    return;
+                }
+
+                isDrawing = true;
+                addPoint(e);
+            }
+
+            function draw(e) {
+                if (!isDrawing) return;
+                addPoint(e, true);
+            }
+
+            function stopDrawing() {
+                isDrawing = false;
+                update();
+            }
+
+            function addPoint(e, isDragging = false) {
+                const rect = canvas.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const y = e.clientY - rect.top;
+                const worldPos = renderer.toWorld(x, y);
+
+                if (path.length > 0) {
+                    const last = path[path.length - 1];
+                    const dist = Math.hypot(worldPos.x - last.x, worldPos.y - last.y);
+
+                    const threshold = isDragging ? 0.5 : 0.1;
+                    if (dist < threshold) return;
+                }
+                path.push(worldPos);
+                update();
+            }
+
+            function update() {
+                renderer.clear();
+                renderer.drawPath(path);
+                if (path.length >= 2) {
+                    const states = engine.simulate(path, vehicle);
+                    renderer.drawSimulation(states, vehicle);
+                }
+            }
+
+            class DxfWriter {
+                constructor(version = 'AC1032') {
+                    this.version = version;
+                    this.content = [];
+                    this.handleCount = 0;
+                    this.addHeader();
+                    this.addClasses();
+                    this.addTables();
+                    this.addBlocks();
+                    this.content.push("0\r\nSECTION\r\n2\r\nENTITIES\r\n");
+                }
+
+                nextHandle() {
+                    this.handleCount++;
+                    return this.handleCount.toString(16).toUpperCase();
+                }
+
+                formatFloat(val) {
+                    if (typeof val !== 'number' || isNaN(val) || !isFinite(val)) return "0.0000";
+                    return val.toFixed(4);
+                }
+
+                addHeader() {
+                    this.content.push("0\r\nSECTION\r\n2\r\nHEADER\r\n");
+                    this.content.push("9\r\n$ACADVER\r\n1\r\n" + this.version + "\r\n");
+                    this.content.push("9\r\n$INSUNITS\r\n70\r\n6\r\n"); // 6 = Meters
+                    this.content.push("9\r\n$HANDSEED\r\n5\r\nFFFF\r\n");
+                    this.content.push("0\r\nENDSEC\r\n");
+                }
+
+                addClasses() {
+                    if (this.version === 'AC1009') return;
+                    this.content.push("0\r\nSECTION\r\n2\r\nCLASSES\r\n0\r\nENDSEC\r\n");
+                }
+
+                addTables() {
+                    this.content.push("0\r\nSECTION\r\n2\r\nTABLES\r\n");
+                    this.addAppIdTable();
+                    this.addLTypeTable();
+                    this.addLayerTable();
+                    this.content.push("0\r\nENDSEC\r\n");
+                }
+
+                addAppIdTable() {
+                    this.content.push("0\r\nTABLE\r\n2\r\nAPPID\r\n5\r\n" + this.nextHandle() + "\r\n");
+                    if (this.version !== 'AC1009') this.content.push("100\r\nAcDbSymbolTable\r\n");
+                    this.content.push("70\r\n1\r\n");
+                    this.content.push("0\r\nAPPID\r\n5\r\n" + this.nextHandle() + "\r\n");
+                    if (this.version !== 'AC1009') this.content.push("100\r\nAcDbSymbolTableRecord\r\n100\r\nAcDbRegAppTableRecord\r\n");
+                    this.content.push("2\r\nACAD\r\n70\r\n0\r\n");
+                    this.content.push("0\r\nENDTAB\r\n");
+                }
+
+                addLTypeTable() {
+                    this.content.push("0\r\nTABLE\r\n2\r\nLTYPE\r\n5\r\n" + this.nextHandle() + "\r\n");
+                    if (this.version !== 'AC1009') this.content.push("100\r\nAcDbSymbolTable\r\n");
+                    this.content.push("70\r\n1\r\n");
+                    this.content.push("0\r\nLTYPE\r\n5\r\n" + this.nextHandle() + "\r\n");
+                    if (this.version !== 'AC1009') this.content.push("100\r\nAcDbSymbolTableRecord\r\n100\r\nAcDbLinetypeTableRecord\r\n");
+                    this.content.push("2\r\nCONTINUOUS\r\n70\r\n0\r\n3\r\nSolid line\r\n72\r\n65\r\n73\r\n0\r\n40\r\n0.0\r\n");
+                    this.content.push("0\r\nENDTAB\r\n");
+                }
+
+                addLayerTable() {
+                    this.content.push("0\r\nTABLE\r\n2\r\nLAYER\r\n5\r\n" + this.nextHandle() + "\r\n");
+                    if (this.version !== 'AC1009') this.content.push("100\r\nAcDbSymbolTable\r\n");
+                    this.content.push("70\r\n4\r\n");
+                    this.addLayer("0", 7);
+                    this.addLayer("Trajectory_Tractor", 1);
+                    this.addLayer("Trajectory_Trailer", 3);
+                    this.addLayer("Swept_Path", 5);
+                    this.content.push("0\r\nENDTAB\r\n");
+                }
+
+                addLayer(name, color) {
+                    this.content.push("0\r\nLAYER\r\n5\r\n" + this.nextHandle() + "\r\n");
+                    if (this.version !== 'AC1009') {
+                        this.content.push("100\r\nAcDbSymbolTableRecord\r\n100\r\nAcDbLayerTableRecord\r\n");
+                    }
+                    this.content.push("2\r\n" + name + "\r\n70\r\n0\r\n62\r\n" + color + "\r\n6\r\nCONTINUOUS\r\n");
+                }
+
+                addBlocks() {
+                    this.content.push("0\r\nSECTION\r\n2\r\nBLOCKS\r\n");
+                    // *Model_Space
+                    this.content.push("0\r\nBLOCK\r\n5\r\n" + this.nextHandle() + "\r\n");
+                    if (this.version !== 'AC1009') this.content.push("100\r\nAcDbEntity\r\n8\r\n0\r\n100\r\nAcDbBlockBegin\r\n");
+                    this.content.push("2\r\n*Model_Space\r\n70\r\n0\r\n10\r\n0.0\r\n20\r\n0.0\r\n30\r\n0.0\r\n3\r\n*Model_Space\r\n1\r\n\r\n");
+                    this.content.push("0\r\nENDBLK\r\n5\r\n" + this.nextHandle() + "\r\n");
+                    if (this.version !== 'AC1009') this.content.push("100\r\nAcDbEntity\r\n8\r\n0\r\n100\r\nAcDbBlockEnd\r\n");
+                    // *Paper_Space
+                    this.content.push("0\r\nBLOCK\r\n5\r\n" + this.nextHandle() + "\r\n");
+                    if (this.version !== 'AC1009') this.content.push("100\r\nAcDbEntity\r\n8\r\n0\r\n100\r\nAcDbBlockBegin\r\n");
+                    this.content.push("2\r\n*Paper_Space\r\n70\r\n0\r\n10\r\n0.0\r\n20\r\n0.0\r\n30\r\n0.0\r\n3\r\n*Paper_Space\r\n1\r\n\r\n");
+                    this.content.push("0\r\nENDBLK\r\n5\r\n" + this.nextHandle() + "\r\n");
+                    if (this.version !== 'AC1009') this.content.push("100\r\nAcDbEntity\r\n8\r\n0\r\n100\r\nAcDbBlockEnd\r\n");
+                    this.content.push("0\r\nENDSEC\r\n");
+                }
+
+                addPolyline(points, layer) {
+                    if (points.length < 2) return;
+                    if (this.version === 'AC1009') {
+                        this.content.push("0\r\nPOLYLINE\r\n");
+                        this.content.push("5\r\n" + this.nextHandle() + "\r\n");
+                        this.content.push("8\r\n" + layer + "\r\n");
+                        this.content.push("66\r\n1\r\n");
+                        this.content.push("70\r\n0\r\n");
+                        for (const p of points) {
+                            this.content.push("0\r\nVERTEX\r\n");
+                            this.content.push("5\r\n" + this.nextHandle() + "\r\n");
+                            this.content.push("8\r\n" + layer + "\r\n");
+                            this.content.push("10\r\n" + this.formatFloat(p.x) + "\r\n20\r\n" + this.formatFloat(p.y) + "\r\n30\r\n0.0\r\n");
+                        }
+                        this.content.push("0\r\nSEQEND\r\n");
+                        this.content.push("5\r\n" + this.nextHandle() + "\r\n");
+                        this.content.push("8\r\n" + layer + "\r\n");
+                    } else {
+                        this.content.push("0\r\nLWPOLYLINE\r\n");
+                        this.content.push("5\r\n" + this.nextHandle() + "\r\n");
+                        this.content.push("8\r\n" + layer + "\r\n");
+                        this.content.push("100\r\nAcDbEntity\r\n");
+                        this.content.push("100\r\nAcDbPolyline\r\n");
+                        this.content.push("90\r\n" + points.length + "\r\n");
+                        this.content.push("70\r\n0\r\n");
+                        for (const p of points) {
+                            this.content.push("10\r\n" + this.formatFloat(p.x) + "\r\n20\r\n" + this.formatFloat(p.y) + "\r\n");
+                        }
+                    }
+                }
+
+                addObjects() {
+                    if (this.version === 'AC1009') return;
+                    this.content.push("0\r\nSECTION\r\n2\r\nOBJECTS\r\n");
+                    this.content.push("0\r\nDICTIONARY\r\n5\r\n" + this.nextHandle() + "\r\n");
+                    this.content.push("100\r\nAcDbDictionary\r\n280\r\n0\r\n281\r\n1\r\n");
+                    this.content.push("0\r\nENDSEC\r\n");
+                }
+
+                toBlob() {
+                    this.content.push("0\r\nENDSEC\r\n"); // End ENTITIES
+                    this.addObjects();
+                    this.content.push("0\r\nEOF\r\n");
+                    return new Blob([this.content.join("")], { type: 'application/dxf' });
+                }
+            }
+
+            // Create Version Selector UI
+            const exportBtn = inputs.exportDxfBtn;
+            const versionSelect = document.createElement('select');
+            versionSelect.id = 'dxfVersion';
+            versionSelect.className = 'p-2 border rounded mr-2';
+            versionSelect.innerHTML = `
+                <option value="AC1032">DXF 2018 (AC1032)</option>
+                <option value="AC1009">DXF R12 (AC1009)</option>
+            `;
+            // Insert before the export button
+            exportBtn.parentNode.insertBefore(versionSelect, exportBtn);
+
+            inputs.exportDxfBtn.addEventListener('click', () => {
+                if (path.length < 2) {
+                    alert("軌跡を描画してください (Please draw a path first)");
+                    return;
+                }
+
+                const states = engine.simulate(path, vehicle);
+                if (!states || states.length === 0) return;
+
+                const selectedVersion = versionSelect.value;
+                const dxf = new DxfWriter(selectedVersion);
+
+                // 1. Tractor Path (Red) - Rear Axle Center
+                // DXF Y is usually Up. Flip Y for CAD compatibility.
+                const flipY = (pts) => pts.map(p => ({ x: p.x, y: -p.y }));
+
+                dxf.addPolyline(flipY(states), "Trajectory_Tractor");
+
+                // 2. Trailer Path (Green)
+                if (vehicle.hasTrailer) {
+                    const trailerPath = states.map(s => s.trailer);
+                    dxf.addPolyline(flipY(trailerPath), "Trajectory_Trailer");
+                }
+
+                // 3. Swept Path (Blue)
+                // Tractor FL
+                dxf.addPolyline(flipY(states.map(s => s.envelope.tractor.fl)), "Swept_Path");
+                // Tractor FR
+                dxf.addPolyline(flipY(states.map(s => s.envelope.tractor.fr)), "Swept_Path");
+
+                if (vehicle.hasTrailer) {
+                    dxf.addPolyline(flipY(states.map(s => s.envelope.trailer.rl)), "Swept_Path");
+                    dxf.addPolyline(flipY(states.map(s => s.envelope.trailer.rr)), "Swept_Path");
+                } else {
+                    dxf.addPolyline(flipY(states.map(s => s.envelope.tractor.rl)), "Swept_Path");
+                    dxf.addPolyline(flipY(states.map(s => s.envelope.tractor.rr)), "Swept_Path");
+                }
+
+                // Download
+                const blob = dxf.toBlob();
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `trajectory_${selectedVersion}.dxf`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            });
+        });
+    </script>
+
+</body>

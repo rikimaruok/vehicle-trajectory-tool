@@ -1728,19 +1728,22 @@
 
                 addTables() {
                     this.content.push("0\r\nSECTION\r\n2\r\nTABLES\r\n");
-                    this.addAppIdTable();
+                    this.addVPortTable();
                     this.addLTypeTable();
                     this.addLayerTable();
+                    this.addStyleTable();
+                    this.addViewTable();
+                    this.addUcsTable();
+                    this.addAppIdTable();
+                    this.addDimStyleTable();
+                    this.addBlockRecordTable();
                     this.content.push("0\r\nENDSEC\r\n");
                 }
 
-                addAppIdTable() {
-                    this.content.push("0\r\nTABLE\r\n2\r\nAPPID\r\n5\r\n" + this.nextHandle() + "\r\n");
+                addVPortTable() {
+                    this.content.push("0\r\nTABLE\r\n2\r\nVPORT\r\n5\r\n" + this.nextHandle() + "\r\n");
                     if (this.version !== 'AC1009') this.content.push("100\r\nAcDbSymbolTable\r\n");
-                    this.content.push("70\r\n1\r\n");
-                    this.content.push("0\r\nAPPID\r\n5\r\n" + this.nextHandle() + "\r\n");
-                    if (this.version !== 'AC1009') this.content.push("100\r\nAcDbSymbolTableRecord\r\n100\r\nAcDbRegAppTableRecord\r\n");
-                    this.content.push("2\r\nACAD\r\n70\r\n0\r\n");
+                    this.content.push("70\r\n0\r\n");
                     this.content.push("0\r\nENDTAB\r\n");
                 }
 
@@ -1762,6 +1765,7 @@
                     this.addLayer("Trajectory_Tractor", 1);
                     this.addLayer("Trajectory_Trailer", 3);
                     this.addLayer("Swept_Path", 5);
+                    this.addLayer("Vehicle_Body", 7); // White/Black
                     this.content.push("0\r\nENDTAB\r\n");
                 }
 
@@ -1771,6 +1775,59 @@
                         this.content.push("100\r\nAcDbSymbolTableRecord\r\n100\r\nAcDbLayerTableRecord\r\n");
                     }
                     this.content.push("2\r\n" + name + "\r\n70\r\n0\r\n62\r\n" + color + "\r\n6\r\nCONTINUOUS\r\n");
+                }
+
+                addStyleTable() {
+                    this.content.push("0\r\nTABLE\r\n2\r\nSTYLE\r\n5\r\n" + this.nextHandle() + "\r\n");
+                    if (this.version !== 'AC1009') this.content.push("100\r\nAcDbSymbolTable\r\n");
+                    this.content.push("70\r\n0\r\n");
+                    this.content.push("0\r\nENDTAB\r\n");
+                }
+
+                addViewTable() {
+                    this.content.push("0\r\nTABLE\r\n2\r\nVIEW\r\n5\r\n" + this.nextHandle() + "\r\n");
+                    if (this.version !== 'AC1009') this.content.push("100\r\nAcDbSymbolTable\r\n");
+                    this.content.push("70\r\n0\r\n");
+                    this.content.push("0\r\nENDTAB\r\n");
+                }
+
+                addUcsTable() {
+                    this.content.push("0\r\nTABLE\r\n2\r\nUCS\r\n5\r\n" + this.nextHandle() + "\r\n");
+                    if (this.version !== 'AC1009') this.content.push("100\r\nAcDbSymbolTable\r\n");
+                    this.content.push("70\r\n0\r\n");
+                    this.content.push("0\r\nENDTAB\r\n");
+                }
+
+                addAppIdTable() {
+                    this.content.push("0\r\nTABLE\r\n2\r\nAPPID\r\n5\r\n" + this.nextHandle() + "\r\n");
+                    if (this.version !== 'AC1009') this.content.push("100\r\nAcDbSymbolTable\r\n");
+                    this.content.push("70\r\n1\r\n");
+                    this.content.push("0\r\nAPPID\r\n5\r\n" + this.nextHandle() + "\r\n");
+                    if (this.version !== 'AC1009') this.content.push("100\r\nAcDbSymbolTableRecord\r\n100\r\nAcDbRegAppTableRecord\r\n");
+                    this.content.push("2\r\nACAD\r\n70\r\n0\r\n");
+                    this.content.push("0\r\nENDTAB\r\n");
+                }
+
+                addDimStyleTable() {
+                    this.content.push("0\r\nTABLE\r\n2\r\nDIMSTYLE\r\n5\r\n" + this.nextHandle() + "\r\n");
+                    if (this.version !== 'AC1009') this.content.push("100\r\nAcDbSymbolTable\r\n");
+                    this.content.push("70\r\n0\r\n");
+                    this.content.push("0\r\nENDTAB\r\n");
+                }
+
+                addBlockRecordTable() {
+                    this.content.push("0\r\nTABLE\r\n2\r\nBLOCK_RECORD\r\n5\r\n" + this.nextHandle() + "\r\n");
+                    if (this.version !== 'AC1009') this.content.push("100\r\nAcDbSymbolTable\r\n");
+                    this.content.push("70\r\n2\r\n");
+                    // Model Space
+                    this.content.push("0\r\nBLOCK_RECORD\r\n5\r\n" + this.nextHandle() + "\r\n");
+                    if (this.version !== 'AC1009') this.content.push("100\r\nAcDbSymbolTableRecord\r\n100\r\nAcDbBlockTableRecord\r\n");
+                    this.content.push("2\r\n*Model_Space\r\n");
+                    // Paper Space
+                    this.content.push("0\r\nBLOCK_RECORD\r\n5\r\n" + this.nextHandle() + "\r\n");
+                    if (this.version !== 'AC1009') this.content.push("100\r\nAcDbSymbolTableRecord\r\n100\r\nAcDbBlockTableRecord\r\n");
+                    this.content.push("2\r\n*Paper_Space\r\n");
+                    this.content.push("0\r\nENDTAB\r\n");
                 }
 
                 addBlocks() {
@@ -1797,7 +1854,7 @@
                         this.content.push("5\r\n" + this.nextHandle() + "\r\n");
                         this.content.push("8\r\n" + layer + "\r\n");
                         this.content.push("66\r\n1\r\n");
-                        this.content.push("70\r\n0\r\n");
+                        this.content.push("70\r\n1\r\n"); // Closed polyline if needed? No, usually open for path.
                         for (const p of points) {
                             this.content.push("0\r\nVERTEX\r\n");
                             this.content.push("5\r\n" + this.nextHandle() + "\r\n");
@@ -1814,7 +1871,9 @@
                         this.content.push("100\r\nAcDbEntity\r\n");
                         this.content.push("100\r\nAcDbPolyline\r\n");
                         this.content.push("90\r\n" + points.length + "\r\n");
-                        this.content.push("70\r\n0\r\n");
+                        // Check if closed
+                        const isClosed = (points.length > 2 && points[0].x === points[points.length - 1].x && points[0].y === points[points.length - 1].y);
+                        this.content.push("70\r\n" + (isClosed ? "1" : "0") + "\r\n");
                         for (const p of points) {
                             this.content.push("10\r\n" + this.formatFloat(p.x) + "\r\n20\r\n" + this.formatFloat(p.y) + "\r\n");
                         }
@@ -1837,17 +1896,8 @@
                 }
             }
 
-            // Create Version Selector UI
+            // Create Version Selector UI - Removed
             const exportBtn = inputs.exportDxfBtn;
-            const versionSelect = document.createElement('select');
-            versionSelect.id = 'dxfVersion';
-            versionSelect.className = 'p-2 border rounded mr-2';
-            versionSelect.innerHTML = `
-                <option value="AC1032">DXF 2018 (AC1032)</option>
-                <option value="AC1009">DXF R12 (AC1009)</option>
-            `;
-            // Insert before the export button
-            exportBtn.parentNode.insertBefore(versionSelect, exportBtn);
 
             inputs.exportDxfBtn.addEventListener('click', () => {
                 if (path.length < 2) {
@@ -1858,7 +1908,7 @@
                 const states = engine.simulate(path, vehicle);
                 if (!states || states.length === 0) return;
 
-                const selectedVersion = versionSelect.value;
+                const selectedVersion = 'AC1032';
                 const dxf = new DxfWriter(selectedVersion);
 
                 // 1. Tractor Path (Red) - Rear Axle Center
@@ -1885,6 +1935,54 @@
                 } else {
                     dxf.addPolyline(flipY(states.map(s => s.envelope.tractor.rl)), "Swept_Path");
                     dxf.addPolyline(flipY(states.map(s => s.envelope.tractor.rr)), "Swept_Path");
+                }
+
+                // 4. Vehicle Body (White/Black)
+                const step = Math.floor(states.length / 10) || 1;
+
+                const getRectCorners = (cx, cy, heading, lenFront, lenRear, width) => {
+                    const halfW = width / 2;
+                    // Corners relative to center
+                    const corners = [
+                        { lx: lenFront, ly: halfW },
+                        { lx: lenFront, ly: -halfW },
+                        { lx: -lenRear, ly: -halfW },
+                        { lx: -lenRear, ly: halfW },
+                        { lx: lenFront, ly: halfW } // Close loop
+                    ];
+
+                    return corners.map(c => engine.transformPoint(c.lx, c.ly, cx, cy, heading));
+                };
+
+                for (let i = 0; i < states.length; i += step) {
+                    const s = states[i];
+
+                    // Tractor
+                    const trFront = vehicle.wheelbase + vehicle.overhangFront;
+                    const trRear = vehicle.overhangRear;
+                    const trPts = getRectCorners(s.x, s.y, s.heading, trFront, trRear, vehicle.width);
+                    dxf.addPolyline(flipY(trPts), "Vehicle_Body");
+
+                    // Trailer
+                    if (vehicle.hasTrailer && s.trailer) {
+                        const tFront = vehicle.trailerWheelbase;
+                        const tRear = vehicle.trailerOverhangRear;
+                        const tPts = getRectCorners(s.trailer.x, s.trailer.y, s.trailer.heading, tFront, tRear, vehicle.trailerWidth);
+                        dxf.addPolyline(flipY(tPts), "Vehicle_Body");
+                    }
+                }
+                // Always draw last one
+                const lastS = states[states.length - 1];
+                const trFront = vehicle.wheelbase + vehicle.overhangFront;
+                const trRear = vehicle.overhangRear;
+                const trPts = getRectCorners(lastS.x, lastS.y, lastS.heading, trFront, trRear, vehicle.width);
+                dxf.addPolyline(flipY(trPts), "Vehicle_Body");
+
+                if (vehicle.hasTrailer && lastS.trailer) {
+                    const tFront = vehicle.trailerWheelbase;
+                    const tRear = vehicle.trailerOverhangRear;
+                    const tPts = getRectCorners(lastS.trailer.x, lastS.trailer.y, lastS.trailer.heading, tFront, tRear, vehicle.trailerWidth);
+                    dxf.addPolyline(flipY(tPts), "Vehicle_Body");
                 }
 
                 // Download

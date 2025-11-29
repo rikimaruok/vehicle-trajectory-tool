@@ -144,6 +144,12 @@
             opacity: 1;
         }
 
+        .icon-btn.active {
+            background: var(--primary-color);
+            color: white;
+            box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
         /* Settings Panel (Floating) */
         #settings-panel {
             position: absolute;
@@ -387,6 +393,13 @@
 
     <!-- Toolbar -->
     <div id="toolbar">
+        <button id="drawBtn" class="icon-btn active" title="描画 (Draw)">
+            <span class="material-symbols-rounded">edit</span>
+        </button>
+        <button id="panBtn" class="icon-btn" title="移動 (Pan)">
+            <span class="material-symbols-rounded">pan_tool</span>
+        </button>
+        <div style="height: 1px; background: rgba(0,0,0,0.1); margin: 4px 0;"></div>
         <button id="toggleSettingsBtn" class="icon-btn primary" title="設定 (Settings)">
             <span class="material-symbols-rounded">settings</span>
         </button>
@@ -777,6 +790,10 @@
                 this.bgOpacity = 0.5;
                 this.bgX = 0;
                 this.bgY = 0;
+
+                // View Transform (Zoom/Pan)
+                this.viewScale = 1.0;
+                this.viewOffset = { x: 0, y: 0 };
             }
 
             resize() {
@@ -800,17 +817,70 @@
             }
 
             toScreen(x, y) {
+                // World -> Screen
+                // 1. Scale by meters-to-pixels (this.scale)
+                // 2. Apply View Zoom (this.viewScale)
+                // 3. Apply View Pan (this.viewOffset)
+                // 4. Center on screen
+
+                const worldScaledX = x * this.scale;
+                const worldScaledY = y * this.scale;
+
                 return {
-                    x: x * this.scale + this.offsetX + this.width / 2,
-                    y: y * this.scale + this.offsetY + this.height / 2
+                    x: (worldScaledX + this.offsetX) * this.viewScale + this.viewOffset.x + this.width / 2,
+                    y: (worldScaledY + this.offsetY) * this.viewScale + this.viewOffset.y + this.height / 2
                 };
             }
 
             toWorld(screenX, screenY) {
+                // Screen -> World
+                // Reverse of toScreen
+
+                const centeredX = screenX - this.width / 2 - this.viewOffset.x;
+                const centeredY = screenY - this.height / 2 - this.viewOffset.y;
+
+                const unzoomedX = centeredX / this.viewScale;
+                const unzoomedY = centeredY / this.viewScale;
+
                 return {
-                    x: (screenX - this.offsetX - this.width / 2) / this.scale,
-                    y: (screenY - this.offsetY - this.height / 2) / this.scale
+                    x: (unzoomedX - this.offsetX) / this.scale,
+                    y: (unzoomedY - this.offsetY) / this.scale
                 };
+            }
+
+            zoomAt(screenX, screenY, delta) {
+                const zoomIntensity = 0.1;
+                const newScale = this.viewScale * (1 + delta * zoomIntensity);
+
+                // Limit zoom
+                if (newScale < 0.1 || newScale > 10) return;
+
+                // Calculate mouse position in world coordinates before zoom
+                const worldPos = this.toWorld(screenX, screenY);
+
+                this.viewScale = newScale;
+
+                // Adjust offset to keep the world position under the mouse fixed
+                // New Screen = (World * scale + offset) * viewScale + viewOffset + Center
+                // We want Screen to be constant.
+                // Actually, easier logic:
+                // MouseWorld should be same before and after.
+                // We just updated viewScale. Now we need to update viewOffset.
+
+                // Let's use the toScreen formula:
+                // ScreenX = (WorldX * scale + offsetX) * viewScale + viewOffset.x + Width/2
+                // viewOffset.x = ScreenX - Width/2 - (WorldX * scale + offsetX) * viewScale
+
+                const worldScaledX = worldPos.x * this.scale;
+                const worldScaledY = worldPos.y * this.scale;
+
+                this.viewOffset.x = screenX - this.width / 2 - (worldScaledX + this.offsetX) * this.viewScale;
+                this.viewOffset.y = screenY - this.height / 2 - (worldScaledY + this.offsetY) * this.viewScale;
+            }
+
+            pan(dx, dy) {
+                this.viewOffset.x += dx;
+                this.viewOffset.y += dy;
             }
 
             drawCalibration(currentMousePos) {
@@ -984,6 +1054,9 @@
             }
 
             drawVehicleBody(state, vehicle, isLast) {
+                // Effective scale (Base scale * Zoom)
+                const s = this.scale * this.viewScale;
+
                 // --- トラクター ---
                 const { x, y, heading } = state;
                 const screenPos = this.toScreen(x, y);
@@ -998,22 +1071,22 @@
 
                 this.ctx.fillStyle = isLast ? 'rgba(0, 123, 255, 0.5)' : 'rgba(0, 123, 255, 0.1)';
                 this.ctx.strokeStyle = isLast ? '#0056b3' : 'rgba(0, 86, 179, 0.3)';
-                this.ctx.lineWidth = 1;
+                this.ctx.lineWidth = 1; // Line width can remain constant or scale if desired
 
                 // 車体
                 this.ctx.beginPath();
-                this.ctx.rect(-lenRear * this.scale, -halfWidth * this.scale, (lenFront + lenRear) * this.scale, vehicle.width * this.scale);
+                this.ctx.rect(-lenRear * s, -halfWidth * s, (lenFront + lenRear) * s, vehicle.width * s);
                 this.ctx.fill();
                 this.ctx.stroke();
 
                 // 車軸
                 this.ctx.beginPath();
                 this.ctx.strokeStyle = 'black';
-                this.ctx.moveTo(0, -halfWidth * this.scale);
-                this.ctx.lineTo(0, halfWidth * this.scale);
+                this.ctx.moveTo(0, -halfWidth * s);
+                this.ctx.lineTo(0, halfWidth * s);
                 this.ctx.stroke();
-                this.ctx.moveTo(vehicle.wheelbase * this.scale, -halfWidth * this.scale);
-                this.ctx.lineTo(vehicle.wheelbase * this.scale, halfWidth * this.scale);
+                this.ctx.moveTo(vehicle.wheelbase * s, -halfWidth * s);
+                this.ctx.lineTo(vehicle.wheelbase * s, halfWidth * s);
                 this.ctx.stroke();
 
                 this.ctx.restore();
@@ -1038,15 +1111,15 @@
 
                     // 車体
                     this.ctx.beginPath();
-                    this.ctx.rect(-tLenRear * this.scale, -tHalfWidth * this.scale, (tLenFront + tLenRear) * this.scale, vehicle.trailerWidth * this.scale);
+                    this.ctx.rect(-tLenRear * s, -tHalfWidth * s, (tLenFront + tLenRear) * s, vehicle.trailerWidth * s);
                     this.ctx.fill();
                     this.ctx.stroke();
 
                     // 車軸
                     this.ctx.beginPath();
                     this.ctx.strokeStyle = 'black';
-                    this.ctx.moveTo(0, -tHalfWidth * this.scale);
-                    this.ctx.lineTo(0, tHalfWidth * this.scale);
+                    this.ctx.moveTo(0, -tHalfWidth * s);
+                    this.ctx.lineTo(0, tHalfWidth * s);
 
                     this.ctx.stroke();
 
@@ -1144,6 +1217,10 @@
                 calPoint1 = null;
                 calPoint2 = null;
                 inputs.calibrationStatus.classList.add('hidden');
+
+                // Restore cursor based on mode
+                setMode(interactionMode);
+
                 update();
             }
 
@@ -1224,6 +1301,7 @@
                     drawPreview();
                     inputs.calibrationStatus.classList.remove('hidden');
                     inputs.calibrationStatus.textContent = "図面上の点Aをクリックしてください (1/2)";
+                    canvas.style.cursor = 'default'; // Use arrow cursor for calibration
                 } catch (e) {
                     alert("Calibrate Error: " + e.message);
                     console.error(e);
@@ -1944,6 +2022,17 @@
             canvas.addEventListener('mouseup', stopDrawing);
             canvas.addEventListener('mouseleave', stopDrawing);
 
+            // Zoom Listener
+            canvas.addEventListener('wheel', (e) => {
+                e.preventDefault();
+                const rect = canvas.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const y = e.clientY - rect.top;
+                const delta = -Math.sign(e.deltaY);
+                renderer.zoomAt(x, y, delta);
+                update();
+            }, { passive: false });
+
             // ... (Clear/Undo listeners) ...
             inputs.clearBtn.addEventListener('click', () => {
                 path = [];
@@ -1957,45 +2046,120 @@
                 }
             });
 
+            // Mode Switching Logic
+            let interactionMode = 'draw'; // 'draw', 'pan'
+            let isPanning = false;
+            let lastPanPos = { x: 0, y: 0 };
+
+            const drawBtn = document.getElementById('drawBtn'); // Need to add this ID to HTML
+            const panBtn = document.getElementById('panBtn');   // Need to add this ID to HTML
+
+            if (drawBtn && panBtn) {
+                drawBtn.addEventListener('click', () => setMode('draw'));
+                panBtn.addEventListener('click', () => setMode('pan'));
+            }
+
+            function setMode(mode) {
+                interactionMode = mode;
+                canvas.style.cursor = mode === 'pan' ? 'grab' : 'crosshair';
+
+                // Update UI state (active class)
+                if (drawBtn) drawBtn.classList.toggle('active', mode === 'draw');
+                if (panBtn) panBtn.classList.toggle('active', mode === 'pan');
+            }
+
             // let currentMousePos = null; // Moved to global
 
             // handleCalibrationClick removed, logic moved to startDrawing
 
-            function addPoint(e, isMove = false) {
-                const rect = canvas.getBoundingClientRect();
-                const x = e.clientX - rect.left;
-                const y = e.clientY - rect.top;
-                const worldPos = renderer.toWorld(x, y);
+            function startDrawing(e) {
+                // Calibration Logic (Priority)
+                if (calibrationState === 'point1') {
+                    const rect = canvas.getBoundingClientRect();
+                    const x = e.clientX - rect.left;
+                    const y = e.clientY - rect.top;
+                    calPoint1 = renderer.toWorld(x, y);
 
-                if (!isMove) {
-                    // Click (add point)
-                    path.push(worldPos);
+                    calibrationState = 'point2';
+                    inputs.calibrationStatus.textContent = '点Bをクリックしてください (Click Point B)';
                     update();
-                } else {
-                    // Drag (add point if distance > threshold)
-                    const last = path[path.length - 1];
-                    if (last) {
-                        const dist = Math.hypot(worldPos.x - last.x, worldPos.y - last.y);
-                        if (dist > 0.1) { // 10cm threshold
-                            path.push(worldPos);
-                            update();
-                        }
-                    }
+                    return;
                 }
+
+                if (calibrationState === 'point2') {
+                    // ... existing calibration logic ...
+                    try {
+                        const rect = canvas.getBoundingClientRect();
+                        const x = e.clientX - rect.left;
+                        const y = e.clientY - rect.top;
+                        calPoint2 = renderer.toWorld(x, y);
+
+                        if (!calPoint1) {
+                            calibrationState = 'point1';
+                            inputs.calibrationStatus.textContent = '点Aをクリックしてください (1/2)';
+                            update();
+                            return;
+                        }
+
+                        const distWorld = Math.hypot(calPoint2.x - calPoint1.x, calPoint2.y - calPoint1.y);
+                        tempDistImagePixels = distWorld / bgMetersPerPixel;
+
+                        // Show Modal
+                        inputs.calibrationModal.style.display = 'block';
+                        inputs.calDistanceInput.focus();
+
+                        update(); // Show point B
+                    } catch (err) {
+                        console.error(err);
+                        calibrationState = 'none';
+                        update();
+                    }
+                    return;
+                }
+
+                // Pan Mode Logic
+                if (interactionMode === 'pan') {
+                    isPanning = true;
+                    lastPanPos = { x: e.clientX, y: e.clientY };
+                    canvas.style.cursor = 'grabbing';
+                    return;
+                }
+
+                // Normal Drawing Logic
+                if (calibrationState !== 'none') return;
+
+                isDrawing = true;
+                addPoint(e);
             }
 
             function draw(e) {
                 const rect = canvas.getBoundingClientRect();
                 const x = e.clientX - rect.left;
                 const y = e.clientY - rect.top;
+
+                // Pan Logic
+                if (isPanning) {
+                    const dx = e.clientX - lastPanPos.x;
+                    const dy = e.clientY - lastPanPos.y;
+                    renderer.pan(dx, dy);
+                    lastPanPos = { x: e.clientX, y: e.clientY };
+                    update();
+                    return;
+                }
+
                 const worldPos = renderer.toWorld(x, y);
 
-                // Update global mouse position for calibration visualization
+                // Update global mouse position for calibration visualization & Preview
                 currentMousePos = worldPos;
 
                 if (calibrationState === 'point2') {
                     update(); // Redraw to show dynamic line
                     return;
+                }
+
+                // Always update to show preview (if enabled)
+                if (interactionMode === 'draw' && !isPanning && calibrationState === 'none') {
+                    update();
                 }
 
                 if (!isDrawing) return;
@@ -2004,6 +2168,10 @@
             }
 
             function stopDrawing() {
+                if (isPanning) {
+                    isPanning = false;
+                    canvas.style.cursor = 'grab';
+                }
                 isDrawing = false;
                 update();
             }
@@ -2036,11 +2204,28 @@
 
             function update() {
                 renderer.clear();
+
+                // 1. Draw Center Line (Committed + Rubber band)
                 renderer.drawPath(path, currentMousePos);
 
-                // Simulate & Draw Vehicle
-                if (path.length > 0) {
-                    const states = engine.simulate(path, vehicle);
+                // 2. Simulate & Draw Vehicle (Committed + Preview)
+                // Construct path for simulation
+                let simPath = [...path];
+                if (interactionMode === 'draw' && !isPanning && currentMousePos && calibrationState === 'none') {
+                    if (path.length > 0) {
+                        const last = path[path.length - 1];
+                        const dist = Math.hypot(currentMousePos.x - last.x, currentMousePos.y - last.y);
+                        if (dist > 0.1) {
+                            simPath.push(currentMousePos);
+                        }
+                    }
+                }
+
+                // Debug Preview
+                // console.log(`Path: ${path.length}, SimPath: ${simPath.length}, Mouse: ${currentMousePos ? 'Yes' : 'No'}`);
+
+                if (simPath.length > 1) {
+                    const states = engine.simulate(simPath, vehicle);
                     renderer.drawSimulation(states, vehicle);
                 }
             }

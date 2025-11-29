@@ -240,32 +240,32 @@
         <h2>車両設定</h2>
 
         <div class="control-group">
-            <label>車両プリセット (Vehicle Preset)</label>
+            <label>車両プリセット</label>
             <select id="vehiclePreset">
-                <option value="custom">カスタム (Custom)</option>
+                <option value="custom">カスタム</option>
                 <!-- Options will be populated by JS -->
             </select>
         </div>
 
         <div class="control-group">
-            <button id="openSettingsBtn">車両諸元設定 (Vehicle Settings)</button>
+            <button id="openSettingsBtn">車両諸元設定</button>
         </div>
 
         <div class="control-group">
-            <h3>背景図面 (Background)</h3>
+            <h3>背景図面</h3>
             <input type="file" id="bgFileInput" accept="image/*,application/pdf">
-            <label>不透明度 (Opacity)</label>
+            <label>不透明度</label>
             <input type="range" id="bgOpacity" min="0" max="1" step="0.1" value="0.5">
-            <button id="calibrateBtn" class="secondary">尺度調整 (Calibrate)</button>
+            <button id="calibrateBtn" class="secondary">尺度調整</button>
             <div id="calibrationStatus" class="instructions hidden" style="color: blue;">
                 点Aをクリックしてください...
             </div>
         </div>
 
         <div class="control-group">
-            <button id="undoBtn" class="secondary">1つ戻る (Undo)</button>
+            <button id="undoBtn" class="secondary">1つ戻る</button>
             <button id="clearBtn" class="secondary">全クリア</button>
-            <button id="exportDxfBtn" style="background: #28a745; margin-top: 10px;">DXF エクスポート (Export DXF)</button>
+            <button id="exportDxfBtn" style="background: #28a745; margin-top: 10px;">DXF エクスポート</button>
         </div>
 
         <div class="instructions">
@@ -279,7 +279,6 @@
             <div class="legend-item">
                 <div class="legend-color"
                     style="background:blue; border:1px dashed blue; height:0; border-top:2px dashed blue;"></div>車体外郭
-                (Swept Path)
             </div>
             <br>
             <strong>使い方:</strong><br>
@@ -299,60 +298,60 @@
     <div id="settingsModal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
-                <h2>車両諸元設定 (Vehicle Specifications)</h2>
+                <h2>車両諸元設定</h2>
                 <span class="close">&times;</span>
             </div>
             <div class="modal-body">
                 <div class="editor-panel">
-                    <h3>プリセット (Preset)</h3>
+                    <h3>プリセット</h3>
                     <select id="modalPreset" style="width: 100%; margin-bottom: 15px;">
-                        <option value="custom">カスタム (Custom)</option>
+                        <option value="custom">カスタム</option>
                     </select>
 
-                    <h3>トラクター (Tractor)</h3>
-                    <div class="form-row"><label>全幅 (Width)</label><input type="number" id="m_width" step="0.01"><span
+                    <h3>トラクター</h3>
+                    <div class="form-row"><label>全幅</label><input type="number" id="m_width" step="0.01"><span
                             class="unit">m</span></div>
-                    <div class="form-row"><label>ホイールベース (Wheelbase)</label><input type="number" id="m_wheelbase"
+                    <div class="form-row"><label>ホイールベース</label><input type="number" id="m_wheelbase" step="0.01"><span
+                            class="unit">m</span></div>
+                    <div class="form-row"><label>フロントオーバーハング</label><input type="number" id="m_overhangFront"
                             step="0.01"><span class="unit">m</span></div>
-                    <div class="form-row"><label>フロントオーバーハング (Front OH)</label><input type="number" id="m_overhangFront"
+                    <div class="form-row"><label>リアオーバーハング</label><input type="number" id="m_overhangRear"
                             step="0.01"><span class="unit">m</span></div>
-                    <div class="form-row"><label>リアオーバーハング (Rear OH)</label><input type="number" id="m_overhangRear"
-                            step="0.01"><span class="unit">m</span></div>
-                    <div class="form-row"><label>最大操舵角 (Max Steer)</label><input type="number" id="m_maxSteering"
-                            step="1"><span class="unit">deg</span></div>
+                    <div class="form-row"><label>最大操舵角</label><input type="number" id="m_maxSteering" step="1"><span
+                            class="unit">deg</span></div>
 
-                    <h3>トレーラー (Trailer)</h3>
+                    <h3>トレーラー</h3>
                     <div class="form-row">
-                        <label><input type="checkbox" id="m_hasTrailer"> トレーラー連結 (Enable)</label>
+                        <label><input type="checkbox" id="m_hasTrailer"> トレーラー連結</label>
                     </div>
                     <div id="m_trailerParams">
-                        <div class="form-row"><label>全幅 (Width)</label><input type="number" id="m_trailerWidth"
+                        <div class="form-row"><label>全幅</label><input type="number" id="m_trailerWidth"
                                 step="0.01"><span class="unit">m</span></div>
-                        <div class="form-row"><label>ホイールベース (Kingpin to Axle)</label><input type="number"
-                                id="m_trailerWheelbase" step="0.01"><span class="unit">m</span></div>
-                        <div class="form-row"><label>フロントオーバーハング (Front OH)</label><input type="number"
-                                id="m_trailerOverhangFront" step="0.01"><span class="unit">m</span></div>
-                        <div class="form-row"><label>リアオーバーハング (Rear OH)</label><input type="number"
-                                id="m_trailerOverhangRear" step="0.01"><span class="unit">m</span></div>
-                        <div class="form-row"><label>連結点オフセット (Hitch Offset)</label><input type="number"
-                                id="m_hitchOffset" step="0.01"><span class="unit">m</span></div>
+                        <div class="form-row"><label>ホイールベース</label><input type="number" id="m_trailerWheelbase"
+                                step="0.01"><span class="unit">m</span></div>
+                        <div class="form-row"><label>フロントオーバーハング</label><input type="number" id="m_trailerOverhangFront"
+                                step="0.01"><span class="unit">m</span></div>
+                        <div class="form-row"><label>リアオーバーハング</label><input type="number" id="m_trailerOverhangRear"
+                                step="0.01"><span class="unit">m</span></div>
+                        <div class="form-row"><label>連結点オフセット</label><input type="number" id="m_hitchOffset"
+                                step="0.01"><span class="unit">m</span></div>
                     </div>
                 </div>
                 <div class="preview-panel">
-                    <h3>車両形状図 (Schematic)</h3>
+                    <h3>車両形状図</h3>
                     <div style="margin-bottom: 5px;">
                         <label style="display:inline-block; margin-right: 15px;">
-                            <input type="radio" name="viewMode" value="top" checked> 上面図 (Top View)
+                            <input type="radio" name="viewMode" value="top" checked> 上面図
                         </label>
                         <label style="display:inline-block;">
-                            <input type="radio" name="viewMode" value="side"> 側面図 (Side View)
+                            <input type="radio" name="viewMode" value="side"> 側面図
                         </label>
                     </div>
                     <canvas id="previewCanvas"></canvas>
                     <div style="margin-top: 10px; font-size: 0.9rem; color: #666;">
                         ※ 寸法を変更すると図に反映されます
                     </div>
-                    <button id="saveSettingsBtn" style="margin-top: 20px;">設定を適用 (Apply)</button>
+                    <button id="saveSettingsBtn" style="margin-top: 20px;">設定を適用</button>
                 </div>
             </div>
         </div>
@@ -368,7 +367,7 @@
         const vehiclePresets = [
             {
                 id: '2t_truck',
-                name: '2tトラック (2t Truck)',
+                name: '2tトラック',
                 type: 'single',
                 params: {
                     wheelbase: 2.5,
@@ -380,7 +379,7 @@
             },
             {
                 id: '4t_truck',
-                name: '4tトラック (4t Truck)',
+                name: '4tトラック',
                 type: 'single',
                 params: {
                     wheelbase: 3.8,
@@ -392,7 +391,7 @@
             },
             {
                 id: '10t_truck',
-                name: '10tトラック (10t Truck)',
+                name: '10tトラック',
                 type: 'single',
                 params: {
                     wheelbase: 5.5,
@@ -404,7 +403,7 @@
             },
             {
                 id: 'semi_trailer_40ft',
-                name: 'セミトレーラー 40ft (Semi-Trailer 40ft)',
+                name: 'セミトレーラー 40ft',
                 type: 'trailer',
                 params: {
                     wheelbase: 3.5, // トラクター

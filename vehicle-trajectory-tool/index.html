@@ -813,7 +813,55 @@
                 };
             }
 
-            drawPath(path) {
+            drawCalibration(currentMousePos) {
+                if (!calPoint1) return;
+
+                const p1 = this.toScreen(calPoint1.x, calPoint1.y);
+
+                // Draw Point A
+                this.ctx.fillStyle = 'blue';
+                this.ctx.beginPath(); this.ctx.arc(p1.x, p1.y, 5, 0, Math.PI * 2); this.ctx.fill();
+
+                // Draw Dynamic Line (Point A to Cursor)
+                // Use global currentMousePos if argument is missing, just in case
+                const mousePos = currentMousePos || (typeof window !== 'undefined' ? window.currentMousePos : null);
+
+                if (calibrationState === 'point2' && mousePos && !calPoint2) {
+                    const p2 = this.toScreen(mousePos.x, mousePos.y);
+
+                    this.ctx.strokeStyle = '#ff00ff'; // Magenta
+                    this.ctx.lineWidth = 2;
+                    this.ctx.setLineDash([5, 5]);
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(p1.x, p1.y);
+                    this.ctx.lineTo(p2.x, p2.y);
+                    this.ctx.stroke();
+                    this.ctx.setLineDash([]);
+
+                    // Cursor Marker
+                    this.ctx.beginPath(); this.ctx.arc(p2.x, p2.y, 3, 0, Math.PI * 2); this.ctx.fill();
+                }
+
+                // Draw Point B and Fixed Line
+                if (calPoint2) {
+                    const p2 = this.toScreen(calPoint2.x, calPoint2.y);
+
+                    // Point B
+                    this.ctx.fillStyle = 'blue';
+                    this.ctx.beginPath(); this.ctx.arc(p2.x, p2.y, 5, 0, Math.PI * 2); this.ctx.fill();
+
+                    // Fixed Line
+                    this.ctx.strokeStyle = 'blue';
+                    this.ctx.lineWidth = 2;
+                    this.ctx.setLineDash([]);
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(p1.x, p1.y);
+                    this.ctx.lineTo(p2.x, p2.y);
+                    this.ctx.stroke();
+                }
+            }
+
+            drawPath(path, currentMousePos = null) {
                 // Draw Background
                 if (this.bgImage) {
                     this.ctx.save();
@@ -831,28 +879,11 @@
                         screenBottomRight.x - screenTopLeft.x,
                         screenBottomRight.y - screenTopLeft.y
                     );
-
                     this.ctx.restore();
                 }
 
                 // Draw Calibration Points
-                if (calPoint1) {
-                    const p1 = this.toScreen(calPoint1.x, calPoint1.y);
-                    this.ctx.fillStyle = 'blue';
-                    this.ctx.beginPath(); this.ctx.arc(p1.x, p1.y, 5, 0, Math.PI * 2); this.ctx.fill();
-                }
-                if (calPoint2) {
-                    const p2 = this.toScreen(calPoint2.x, calPoint2.y);
-                    this.ctx.fillStyle = 'blue';
-                    this.ctx.beginPath(); this.ctx.arc(p2.x, p2.y, 5, 0, Math.PI * 2); this.ctx.fill();
-
-                    // Line
-                    if (calPoint1) {
-                        const p1 = this.toScreen(calPoint1.x, calPoint1.y);
-                        this.ctx.strokeStyle = 'blue';
-                        this.ctx.beginPath(); this.ctx.moveTo(p1.x, p1.y); this.ctx.lineTo(p2.x, p2.y); this.ctx.stroke();
-                    }
-                }
+                this.drawCalibration(currentMousePos);
 
                 if (path.length < 2 && !calPoint1) return; // Allow drawing background even if no path
 
@@ -1024,6 +1055,12 @@
             }
         }
 
+        // Global Variables for Calibration (accessible by Renderer)
+        let calibrationState = 'none'; // 'none', 'point1', 'point2'
+        let calPoint1 = null;
+        let calPoint2 = null;
+        let currentMousePos = null;
+
         // --- Main Logic ---
 
         document.addEventListener('DOMContentLoaded', () => {
@@ -1036,9 +1073,6 @@
             let isDrawing = false;
 
             // Background & Calibration Globals
-            let calibrationState = 'none'; // 'none', 'point1', 'point2'
-            let calPoint1 = null;
-            let calPoint2 = null;
             let bgImageElement = null;
             let bgMetersPerPixel = 0.05; // Default
 
@@ -1923,7 +1957,7 @@
                 }
             });
 
-            let currentMousePos = null;
+            // let currentMousePos = null; // Moved to global
 
             // handleCalibrationClick removed, logic moved to startDrawing
 
@@ -1954,13 +1988,19 @@
                 const rect = canvas.getBoundingClientRect();
                 const x = e.clientX - rect.left;
                 const y = e.clientY - rect.top;
-                currentMousePos = renderer.toWorld(x, y);
+                const worldPos = renderer.toWorld(x, y);
 
-                if (isDrawing) {
-                    addPoint(e, true);
-                } else {
-                    update(); // Update to show rubber-band line
+                // Update global mouse position for calibration visualization
+                currentMousePos = worldPos;
+
+                if (calibrationState === 'point2') {
+                    update(); // Redraw to show dynamic line
+                    return;
                 }
+
+                if (!isDrawing) return;
+
+                addPoint(e, true);
             }
 
             function stopDrawing() {
@@ -1997,7 +2037,9 @@
             function update() {
                 renderer.clear();
                 renderer.drawPath(path, currentMousePos);
-                if (path.length >= 2) {
+
+                // Simulate & Draw Vehicle
+                if (path.length > 0) {
                     const states = engine.simulate(path, vehicle);
                     renderer.drawSimulation(states, vehicle);
                 }

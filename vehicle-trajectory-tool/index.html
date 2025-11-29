@@ -150,6 +150,11 @@
             box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1);
         }
 
+        /* Hide tooltip for active button to prevent overlap */
+        .icon-btn.active::after {
+            display: none;
+        }
+
         /* Settings Panel (Floating) */
         #settings-panel {
             position: absolute;
@@ -242,7 +247,8 @@
         .floating-panel {
             position: absolute;
             top: 60px;
-            left: 60px;
+            left: 180px;
+            /* Increased to 180px to avoid tooltip overlap */
             background: rgba(255, 255, 255, 0.95);
             backdrop-filter: blur(10px);
             padding: 20px;
@@ -301,18 +307,20 @@
 
         /* Modal Content */
         .modal-content {
-            background-color: #fefefe;
-            margin: 5% auto;
+            background: #fff;
             padding: 0;
-            border: 1px solid #888;
-            width: 900px;
-            /* Wider for 2 columns */
-            max-width: 95%;
-            border-radius: 12px;
-            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+            /* Remove padding to let panels fill */
+            border-radius: 8px;
+            width: 950px;
+            /* Fixed width */
+            max-width: 95vw;
+            height: 85vh;
+            /* Fixed height */
             display: flex;
             flex-direction: column;
-            max-height: 90vh;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+            overflow: hidden;
+            /* Hide overflow */
         }
 
         .modal-header {
@@ -330,28 +338,31 @@
         }
 
         .editor-panel {
-            flex: 1;
-            padding: 10px;
+            width: 350px;
+            /* Fixed width */
+            padding: 20px;
             overflow-y: auto;
-            border-right: 1px solid #ccc;
+            border-right: 1px solid #e2e8f0;
             background: #fff;
+            flex-shrink: 0;
         }
 
         .preview-panel {
-            width: 400px;
-            padding: 10px;
-            background: white;
+            flex: 1;
+            padding: 20px;
+            background: #ffffff;
+            /* White background */
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
+            position: relative;
         }
 
         #previewCanvas {
-            border: 1px solid #ccc;
-            background: #fff;
-            width: 380px;
-            height: 500px;
+            width: 100%;
+            height: 100%;
+            /* border: 1px solid #e2e8f0; Removed border */
         }
 
         /* Excel-like Table Layout */
@@ -359,26 +370,31 @@
             width: 100%;
             border-collapse: collapse;
             margin-bottom: 15px;
-            font-size: 12px;
-            border: 1px solid #ccc;
+            font-size: 13px;
+            /* Slightly larger font */
+            border: none;
+            /* Remove outer border */
         }
 
         .params-table td,
         .params-table th {
-            border: 1px solid #ccc;
-            padding: 0;
+            border: none;
+            border-bottom: 1px solid #f1f5f9;
+            /* Light horizontal line */
+            padding: 4px 4px;
+            /* Reduced padding */
             vertical-align: middle;
-            height: 24px;
-            /* Fixed row height */
         }
 
         .params-table td:first-child {
-            width: 110px;
-            background-color: #f0f0f0;
-            /* Header-like column */
-            padding-left: 5px;
-            font-weight: normal;
-            color: #333;
+            width: 120px;
+            /* Reduced width */
+            background-color: transparent;
+            /* Remove background */
+            padding-left: 8px;
+            font-weight: 600;
+            /* Bold label */
+            color: #334155;
         }
 
         .params-table td:nth-child(2) {
@@ -388,25 +404,38 @@
 
         .params-table input[type="number"] {
             width: 100%;
+            /* Full width of cell */
             height: 100%;
             border: none;
-            padding: 0 5px;
+            /* Remove border */
+            border-radius: 0;
+            padding: 0 2px;
             box-sizing: border-box;
-            font-size: 12px;
+            font-size: 14px;
+            /* Larger number */
+            font-weight: 500;
             background: transparent;
             outline: none;
+            margin: 0;
+            text-align: right;
+            color: #0f172a;
         }
 
         .params-table input[type="number"]:focus {
-            background-color: #e6f7ff;
-            box-shadow: inset 0 0 0 2px #1890ff;
+            background-color: transparent;
+            box-shadow: none;
+            border-bottom: 2px solid var(--primary-color);
+            /* Underline on focus */
         }
 
         .params-table .unit {
             width: 25px;
-            text-align: center;
-            background-color: #fafafa;
-            color: #666;
+            /* Reduced width */
+            text-align: left;
+            background-color: transparent;
+            color: #64748b;
+            padding-left: 4px;
+            font-size: 12px;
         }
 
         h3 {
@@ -478,6 +507,30 @@
 
         ::-webkit-scrollbar-thumb:hover {
             background: #94a3b8;
+        }
+
+        /* Modal Footer Buttons */
+        .modal-footer {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            margin-top: 15px;
+            padding-top: 10px;
+            border-top: 1px solid #eee;
+        }
+
+        .modal-footer button {
+            padding: 8px 16px;
+            /* Increased padding */
+            font-size: 13px;
+            border-radius: 4px;
+            cursor: pointer;
+            flex: 1;
+            /* Equal width */
+            max-width: 140px;
+            /* Increased max width */
+            white-space: nowrap;
+            /* Prevent wrapping */
         }
     </style>
     <!-- PDF.js -->
@@ -644,7 +697,7 @@
                         <tr>
                             <td>最大操舵角</td>
                             <td><input type="number" id="m_maxSteering" step="1"></td>
-                            <td class="unit">deg</td>
+                            <td class="unit">度</td>
                         </tr>
                         <tr>
                             <td>後輪軸数</td>
@@ -696,14 +749,13 @@
                 <div class="preview-panel">
                     <h3>車両形状図</h3>
                     <canvas id="previewCanvas" width="360" height="480"></canvas>
-                    <div style="margin-top: 10px; font-size: 0.85rem; color: #666; text-align: center;">
-                        上: 上面図 / 下: 側面図<br>
-                        ※ 寸法を変更するとリアルタイムに反映されます
+
+                    <div class="modal-footer">
+                        <button id="cancelSettingsBtn"
+                            style="background: white; color: #64748b; border: 1px solid #cbd5e1;">キャンセル</button>
+                        <button id="saveSettingsBtn"
+                            style="background: var(--primary-color); color: white; border: none;">設定を適用</button>
                     </div>
-                    <button id="saveSettingsBtn"
-                        style="margin-top: 20px; width: 100%; padding: 10px; background: var(--primary-color); color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold;">設定を適用</button>
-                    <button id="cancelSettingsBtn"
-                        style="margin-top: 10px; width: 100%; padding: 10px; background: white; color: #64748b; border: 1px solid #cbd5e1; border-radius: 6px; cursor: pointer;">キャンセル</button>
                 </div>
             </div>
         </div>
@@ -763,8 +815,8 @@
                 }
             },
             {
-                id: 'semi_trailer_40ft',
-                name: 'セミトレーラー 40ft',
+                id: 'semitrailer',
+                name: 'セミトレーラー',
                 type: 'trailer',
                 params: {
                     wheelbase: 3.5, // トラクター
@@ -1039,13 +1091,6 @@
 
                 // Adjust offset to keep the world position under the mouse fixed
                 // New Screen = (World * scale + offset) * viewScale + viewOffset + Center
-                // We want Screen to be constant.
-                // Actually, easier logic:
-                // MouseWorld should be same before and after.
-                // We just updated viewScale. Now we need to update viewOffset.
-
-                // Let's use the toScreen formula:
-                // ScreenX = (WorldX * scale + offsetX) * viewScale + viewOffset.x + Width/2
                 // viewOffset.x = ScreenX - Width/2 - (WorldX * scale + offsetX) * viewScale
 
                 const worldScaledX = worldPos.x * this.scale;
@@ -1320,6 +1365,7 @@
             const engine = new SimulationEngine();
 
             let path = [];
+            let paths = [];
             let isDrawing = false;
 
             // Background & Calibration Globals
@@ -1411,6 +1457,24 @@
             inputs.closeBgPanelBtn.addEventListener('click', () => {
                 inputs.backgroundPanel.style.display = 'none';
                 inputs.toggleBgPanelBtn.classList.remove('active');
+            });
+
+            // Click outside to close panels
+            document.addEventListener('click', (e) => {
+                // Vehicle Panel
+                if (inputs.vehiclePanel.style.display === 'flex') {
+                    if (!inputs.vehiclePanel.contains(e.target) && !inputs.toggleVehiclePanelBtn.contains(e.target)) {
+                        inputs.vehiclePanel.style.display = 'none';
+                        inputs.toggleVehiclePanelBtn.classList.remove('active');
+                    }
+                }
+                // Background Panel
+                if (inputs.backgroundPanel.style.display === 'flex') {
+                    if (!inputs.backgroundPanel.contains(e.target) && !inputs.toggleBgPanelBtn.contains(e.target)) {
+                        inputs.backgroundPanel.style.display = 'none';
+                        inputs.toggleBgPanelBtn.classList.remove('active');
+                    }
+                }
             });
 
             // --- Calibration Modal Logic ---
@@ -1817,15 +1881,14 @@
                 const h = previewCanvas.height;
                 pCtx.clearRect(0, 0, w, h);
 
-                // Split canvas: Top half for Top View, Bottom half for Side View
-                const halfH = h / 2;
+                // Draw Schematic in Preview
+                const cxTop = previewCanvas.width / 2;
+                const cyTop = previewCanvas.height * 0.35; // Move down slightly
+                const scaleTop = 25; // Reduced scale to fit dimensions (was 30)
 
-                // Draw Separator
-                pCtx.strokeStyle = '#eee';
-                pCtx.beginPath();
-                pCtx.moveTo(0, halfH);
-                pCtx.lineTo(w, halfH);
-                pCtx.stroke();
+                const cxSide = previewCanvas.width / 2;
+                const cySide = previewCanvas.height * 0.65; // Move up slightly
+                const scaleSide = 25; // Reduced scale (was 30)
 
                 // --- Shared Calculations ---
                 const wb = parseFloat(inputs.m_wheelbase.value) || 0;
@@ -1856,27 +1919,15 @@
                 const margin = 30;
 
                 // --- Top View (Upper Half) ---
-                // Center in upper half
-                const cxTop = w / 2;
-                const cyTop = halfH / 2;
-
                 // Scale for Top View
                 let scaleX = (w - margin * 2) / (totalLen || 1);
-                let scaleY = (halfH - margin * 2) / (totalWidth || 1);
-                const scaleTop = Math.min(scaleX, scaleY, 30);
+                let scaleY = (h / 2 - margin * 2) / (totalWidth || 1);
+                const actualScaleTop = Math.min(scaleX, scaleY, scaleTop);
 
                 // --- Side View (Lower Half) ---
-                // Center in lower half
-                const cxSide = w / 2;
-                const cySide = halfH + halfH / 2;
-
                 // Scale for Side View (Height ~ 3.5m)
-                let scaleYSide = (halfH - margin * 2) / 4.0;
-                const scaleSide = Math.min(scaleX, scaleYSide, 30);
-
-                // Use same scale for consistency if possible, or independent?
-                // Independent is better to maximize usage of space, but might be confusing.
-                // Let's use independent scales but keep X aligned? No, centering is better.
+                let scaleYSide = (h / 2 - margin * 2) / 4.0;
+                const actualScaleSide = Math.min(scaleX, scaleYSide, scaleSide);
 
                 // Calculate Bounding Box Center X
                 let minX = -ohR;
@@ -1890,111 +1941,214 @@
                 // --- Draw Top View ---
                 pCtx.save();
                 pCtx.translate(cxTop, cyTop);
-                pCtx.scale(scaleTop, scaleTop);
+                pCtx.scale(actualScaleTop, actualScaleTop);
                 pCtx.translate(-midX, 0); // Center horizontally
-                pCtx.lineWidth = 2 / scaleTop;
+                pCtx.lineWidth = 2 / actualScaleTop;
 
-                drawVehicleTop(pCtx, wb, ohF, ohR, width, trAxles, tWb, tOhR, tOhF, hitch, tWidth, tAxles, scaleTop);
+                drawVehicleTop(pCtx, wb, ohF, ohR, width, trAxles, tWb, tOhR, tOhF, hitch, tWidth, tAxles, actualScaleTop);
                 pCtx.restore();
 
                 // --- Draw Side View ---
                 pCtx.save();
-                pCtx.translate(cxSide, cySide + (scaleSide * 1.5)); // Shift down to put ground lower
-                pCtx.scale(scaleSide, -scaleSide); // Y up
+                pCtx.translate(cxSide, cySide + (actualScaleSide * 1.5)); // Shift down to put ground lower
+                pCtx.scale(actualScaleSide, -actualScaleSide); // Y up
                 pCtx.translate(-midX, 0);
-                pCtx.lineWidth = 2 / scaleSide;
+                pCtx.lineWidth = 2 / actualScaleSide;
 
-                drawVehicleSide(pCtx, wb, ohF, ohR, width, trAxles, tWb, tOhR, tOhF, hitch, tWidth, tAxles, scaleSide);
+                drawVehicleSide(pCtx, wb, ohF, ohR, width, trAxles, tWb, tOhR, tOhF, hitch, tWidth, tAxles, actualScaleSide);
                 pCtx.restore();
             }
 
             function drawVehicleTop(ctx, wb, ohF, ohR, width, trAxles, tWb, tOhR, tOhF, hitch, tWidth, tAxles, scale) {
-                // Tractor Body
+                // Static Schematic Logic: Fixed visual proportions
+                // These values are purely for drawing the "ideal" shape
+                const vWb = 3.5;
+                const vOhF = 1.0;
+                const vOhR = 1.0;
+                const vWidth = 2.5;
+
+                // Tractor Body (Visual)
+                ctx.fillStyle = '#eef2ff'; // Light fill
+                ctx.fillRect(-vOhR, -vWidth / 2, vWb + vOhF + vOhR, vWidth);
                 ctx.strokeStyle = '#333';
-                ctx.strokeRect(-ohR, -width / 2, wb + ohF + ohR, width);
+                ctx.strokeRect(-vOhR, -vWidth / 2, vWb + vOhF + vOhR, vWidth);
 
-                // Tractor Wheels
-                ctx.fillStyle = '#000';
-                const wheelW = 0.2;
-                const wheelL = 0.6;
+                // Tractor Wheels (Visual)
+                ctx.fillStyle = '#000'; // Black tires
+                const wheelW = 0.25;
+                const wheelL = 0.7;
 
-                // Front Axle
-                ctx.fillRect(wb - wheelL / 2, width / 2 - wheelW, wheelL, wheelW);
-                ctx.fillRect(wb - wheelL / 2, -width / 2, wheelL, wheelW);
+                // Front Axle (Visual)
+                ctx.fillRect(vWb - wheelL / 2, vWidth / 2 - wheelW, wheelL, wheelW);
+                ctx.fillRect(vWb - wheelL / 2, -vWidth / 2, wheelL, wheelW);
 
-                // Rear Axles (Centered on 0)
-                drawAxleGroup(ctx, 0, width, trAxles, wheelL, wheelW);
+                // Rear Axles (Visual - Centered on 0)
+                // For static view, just draw 2 axles for simplicity or based on count
+                const axleSpacing = 1.2;
+                const axleCount = trAxles || 2; // Use actual tractor axles count
+                for (let i = 0; i < axleCount; i++) {
+                    const ax = 0 - (i * axleSpacing - (axleCount - 1) * axleSpacing / 2);
+                    ctx.fillRect(ax - wheelL / 2, vWidth / 2 - wheelW, wheelL, wheelW);
+                    ctx.fillRect(ax - wheelL / 2, -vWidth / 2, wheelL, wheelW);
+                }
 
-                // Dimensions
-                const dimOffset = 1.5;
-                drawDim(ctx, 0, -width / 2, wb, -width / 2, wb.toFixed(2), -dimOffset); // Wheelbase (Top)
-                drawDim(ctx, wb, -width / 2, wb + ohF, -width / 2, ohF.toFixed(2), -dimOffset); // Front OH (Top)
-                drawDim(ctx, -ohR, -width / 2, 0, -width / 2, ohR.toFixed(2), -dimOffset); // Rear OH (Top)
-                drawDim(ctx, wb + ohF, width / 2, wb + ohF, -width / 2, width.toFixed(2), dimOffset); // Width (Right)
+                // Dimensions (Real Values, Visual Coords)
+                const dimOffset = 2.0; // Increased from 1.8
+                drawDim(ctx, 0, -vWidth / 2, vWb, -vWidth / 2, wb.toFixed(2), -dimOffset); // Wheelbase (Top)
+                drawDim(ctx, vWb, -vWidth / 2, vWb + vOhF, -vWidth / 2, ohF.toFixed(2), -dimOffset); // Front OH (Top)
+                drawDim(ctx, -vOhR, -vWidth / 2, 0, -vWidth / 2, ohR.toFixed(2), -dimOffset); // Rear OH (Top)
+                drawDim(ctx, vWb + vOhF, vWidth / 2, vWb + vOhF, -vWidth / 2, width.toFixed(2), dimOffset); // Width (Right)
 
                 // Trailer
                 if (inputs.m_hasTrailer.checked) {
-                    const hitchX = hitch;
-                    const axleX = hitchX - tWb;
-                    const frontX = hitchX + tOhF;
-                    const rearX = axleX - tOhR;
+                    const vTWb = 5.0; // Fixed long trailer WB (Reduced from 6.0)
+                    const vTOhR = 1.5; // Reduced from 2.0
+                    const vTOhF = 1.0; // Keep this relative or fixed? Let's use fixed small value
+                    const vTWidth = 2.5;
 
-                    // Body
+                    const vHitchX = 0.4; // Fixed visual offset for hitch to show dimension
+
+                    const vAxleX = vHitchX - vTWb;
+                    const vFrontX = vHitchX + vTOhF; // Fixed front overhang visual
+                    const vRearX = vAxleX - vTOhR;
+
+                    // Body (Visual)
+                    ctx.fillStyle = '#eef2ff'; // Light fill
+                    ctx.fillRect(vRearX, -vTWidth / 2, vFrontX - vRearX, vTWidth);
                     ctx.strokeStyle = '#555';
-                    ctx.strokeRect(rearX, -tWidth / 2, frontX - rearX, tWidth);
+                    ctx.strokeRect(vRearX, -vTWidth / 2, vFrontX - vRearX, vTWidth);
 
-                    // Hitch
+                    // Hitch (Visual)
                     ctx.fillStyle = 'red';
-                    ctx.beginPath(); ctx.arc(hitchX, 0, 0.1, 0, Math.PI * 2); ctx.fill();
+                    ctx.beginPath(); ctx.arc(vHitchX, 0, 0.15, 0, Math.PI * 2); ctx.fill();
 
-                    // Trailer Axles
-                    drawAxleGroup(ctx, axleX, tWidth, tAxles, wheelL, wheelW);
+                    // Trailer Axles (Visual)
+                    ctx.fillStyle = '#000'; // Black tires
+                    const tAxleCount = tAxles || 3; // Use actual trailer axles count
+                    for (let i = 0; i < tAxleCount; i++) {
+                        const ax = vAxleX - (i * axleSpacing - (tAxleCount - 1) * axleSpacing / 2);
+                        ctx.fillRect(ax - wheelL / 2, vTWidth / 2 - wheelW, wheelL, wheelW);
+                        ctx.fillRect(ax - wheelL / 2, -vTWidth / 2, wheelL, wheelW);
+                    }
 
-                    // Dimensions
-                    const tDimOffset = 1.5;
-                    drawDim(ctx, axleX, tWidth / 2, hitchX, tWidth / 2, tWb.toFixed(2), tDimOffset); // Trailer WB (Bottom)
-                    drawDim(ctx, rearX, tWidth / 2, axleX, tWidth / 2, tOhR.toFixed(2), tDimOffset); // Trailer Rear OH (Bottom)
-                    drawDim(ctx, rearX, tWidth / 2, rearX, -tWidth / 2, tWidth.toFixed(2), -tDimOffset); // Trailer Width (Left)
+                    // Dimensions (Real Values, Visual Coords)
+                    const tDimOffset = 2.0; // Increased from 1.8
+                    // drawDim(ctx, 0, vTWidth / 2, vHitchX, vTWidth / 2, hitch.toFixed(2), tDimOffset); // Hitch Point Offset REMOVED from Top View
+                    drawDim(ctx, vAxleX, vTWidth / 2, vHitchX, vTWidth / 2, tWb.toFixed(2), tDimOffset); // Trailer WB (Bottom)
+                    drawDim(ctx, vHitchX, vTWidth / 2, vFrontX, vTWidth / 2, tOhF.toFixed(2), tDimOffset); // Trailer Front OH (Bottom)
+                    drawDim(ctx, vRearX, vTWidth / 2, vAxleX, vTWidth / 2, tOhR.toFixed(2), tDimOffset); // Trailer Rear OH (Bottom)
+                    drawDim(ctx, vRearX, vTWidth / 2, vRearX, -vTWidth / 2, tWidth.toFixed(2), -tDimOffset); // Trailer Width (Left)
+
+                    // Total Length Dimension
+                    const totalLen = (wb + ohF) - Math.min(-ohR, hitch - tWb - tOhR);
+
+                    // Visual Coords for Total Length
+                    const vFrontMost = vWb + vOhF;
+                    const vRearMost = vRearX;
+
+                    // Draw Total Length (Top, above other dims)
+                    drawDim(ctx, vRearMost, -vWidth / 2, vFrontMost, -vWidth / 2, `全長 ${totalLen.toFixed(2)}`, -3.5); // Increased offset
+                } else {
+                    // Total Length for Tractor Only
+                    const totalLen = wb + ohF + ohR;
+                    const vFrontMost = vWb + vOhF;
+                    const vRearMost = -vOhR;
+                    drawDim(ctx, vRearMost, -vWidth / 2, vFrontMost, -vWidth / 2, `全長 ${totalLen.toFixed(2)}`, -3.5); // Increased offset
                 }
             }
 
             function drawVehicleSide(ctx, wb, ohF, ohR, width, trAxles, tWb, tOhR, tOhF, hitch, tWidth, tAxles, scale) {
+                // Static Schematic Logic
+                const vWb = 3.5;
+                const vOhF = 1.0;
+                const vOhR = 1.0;
+
                 const cabH = 2.8;
                 const chassisH = 1.0;
                 const wheelR = 0.5;
 
                 // Tractor
                 // Chassis
+                ctx.fillStyle = '#eef2ff';
+                ctx.fillRect(-vOhR, 0.4, vWb + vOhF + vOhR, chassisH - 0.4);
                 ctx.strokeStyle = '#333';
-                ctx.strokeRect(-ohR, 0.4, wb + ohF + ohR, chassisH - 0.4);
+                ctx.strokeRect(-vOhR, 0.4, vWb + vOhF + vOhR, chassisH - 0.4);
                 // Cab
-                ctx.strokeRect(wb - 0.5, chassisH, ohF + 0.5, cabH - chassisH);
+                ctx.fillRect(vWb - 0.5, chassisH, vOhF + 0.5, cabH - chassisH);
+                ctx.strokeRect(vWb - 0.5, chassisH, vOhF + 0.5, cabH - chassisH);
 
                 // Wheels
-                ctx.fillStyle = '#333';
+                ctx.fillStyle = '#000'; // Black tires
                 // Front
-                ctx.beginPath(); ctx.arc(wb, wheelR, wheelR, 0, Math.PI * 2); ctx.fill();
+                ctx.beginPath(); ctx.arc(vWb, wheelR, wheelR, 0, Math.PI * 2); ctx.fill();
                 // Rear
-                drawAxleGroupSide(ctx, 0, trAxles, wheelR);
+                const axleSpacing = 1.2;
+                const axleCount = trAxles || 2; // Use actual tractor axles count
+                for (let i = 0; i < axleCount; i++) {
+                    const ax = 0 - (i * axleSpacing - (axleCount - 1) * axleSpacing / 2);
+                    ctx.beginPath(); ctx.arc(ax, wheelR, wheelR, 0, Math.PI * 2); ctx.fill();
+                }
 
                 // Trailer
                 if (inputs.m_hasTrailer.checked) {
-                    const hitchX = hitch;
-                    const axleX = hitchX - tWb;
-                    const frontX = hitchX + tOhF;
-                    const rearX = axleX - tOhR;
+                    const vTWb = 5.0; // Reduced from 6.0
+                    const vTOhR = 1.5; // Reduced from 2.0
+                    const vTOhF = 1.0;
+
+                    const vHitchX = 0.4;
+                    const vAxleX = vHitchX - vTWb;
+                    const vFrontX = vHitchX + vTOhF;
+                    const vRearX = vAxleX - vTOhR;
                     const bedH = 1.3;
 
                     ctx.strokeStyle = '#555';
+                    ctx.fillStyle = '#eef2ff';
                     // Bed
                     ctx.beginPath();
-                    ctx.moveTo(rearX, bedH);
-                    ctx.lineTo(frontX, bedH);
-                    ctx.lineTo(hitchX, 1.1); // Hitch point
+                    ctx.moveTo(vRearX, bedH);
+                    ctx.lineTo(vFrontX, bedH);
+                    ctx.lineTo(vHitchX, 1.1); // Hitch point
+                    ctx.lineTo(vRearX, 1.1); // Close shape roughly for fill
+                    ctx.closePath();
+                    ctx.fill();
+
+                    // Redraw stroke correctly
+                    ctx.beginPath();
+                    ctx.moveTo(vRearX, bedH);
+                    ctx.lineTo(vFrontX, bedH);
+                    ctx.lineTo(vHitchX, 1.1); // Hitch point
                     ctx.stroke();
 
                     // Axles
-                    drawAxleGroupSide(ctx, axleX, tAxles, wheelR);
+                    ctx.fillStyle = '#000'; // Black tires
+                    const tAxleCount = tAxles || 3; // Use actual trailer axles count
+                    for (let i = 0; i < tAxleCount; i++) {
+                        const ax = vAxleX - (i * axleSpacing - (tAxleCount - 1) * axleSpacing / 2);
+                        ctx.beginPath(); ctx.arc(ax, wheelR, wheelR, 0, Math.PI * 2); ctx.fill();
+                    }
+
+                    // Side View Dimensions (Lengths only as requested)
+                    // Staggered dimensions to avoid overlap
+                    const dimOffsetWB = 1.2; // Increased from 1.0
+                    const dimOffsetOH = 2.8; // Increased from 2.5
+
+                    // Tractor
+                    drawDim(ctx, 0, 0, vWb, 0, wb.toFixed(2), -dimOffsetWB); // WB
+                    drawDim(ctx, vWb, 0, vWb + vOhF, 0, ohF.toFixed(2), -dimOffsetOH); // Front OH
+                    drawDim(ctx, -vOhR, 0, 0, 0, ohR.toFixed(2), -dimOffsetOH); // Rear OH
+
+                    // Trailer
+                    drawDim(ctx, 0, 0, vHitchX, 0, hitch.toFixed(2), 3.5); // Hitch Point Offset (Top of vehicle, positive offset)
+                    drawDim(ctx, vAxleX, 0, vHitchX, 0, tWb.toFixed(2), -dimOffsetWB); // Trailer WB
+                    drawDim(ctx, vHitchX, 0, vFrontX, 0, tOhF.toFixed(2), -dimOffsetOH); // Trailer Front OH
+                    drawDim(ctx, vRearX, 0, vAxleX, 0, tOhR.toFixed(2), -dimOffsetOH); // Trailer Rear OH
+                } else {
+                    // Side View Dimensions (Tractor Only)
+                    const dimOffsetWB = 1.2;
+                    const dimOffsetOH = 2.8;
+                    drawDim(ctx, 0, 0, vWb, 0, wb.toFixed(2), -dimOffsetWB); // WB
+                    drawDim(ctx, vWb, 0, vWb + vOhF, 0, ohF.toFixed(2), -dimOffsetOH); // Front OH
+                    drawDim(ctx, -vOhR, 0, 0, 0, ohR.toFixed(2), -dimOffsetOH); // Rear OH
                 }
             }
 
@@ -2040,51 +2194,72 @@
                 const nx = -dy / len;
                 const ny = dx / len;
 
-                // Offset points
-                const ox1 = x1 + nx * offset;
+                // Draw Lines
+                ctx.beginPath();
+                // Main line
+                ctx.moveTo(x1 + nx * offset, y1 + ny * offset);
+                ctx.lineTo(x2 + nx * offset, y2 + ny * offset);
+                // Extension lines (from object to dim line)
+                ctx.moveTo(x1, y1);
+                ctx.lineTo(x1 + nx * offset, y1 + ny * offset);
+                ctx.moveTo(x2, y2);
+                ctx.lineTo(x2 + nx * offset, y2 + ny * offset);
+                ctx.stroke();
+
+                // Draw Dots at Endpoints
+                ctx.fillStyle = '#000'; // Black dots
+                const dotRadius = 0.15; // Increased size (was 0.08) for better visibility
+
+                // Start Dot
+                ctx.beginPath();
+                ctx.arc(x1 + nx * offset, y1 + ny * offset, dotRadius, 0, Math.PI * 2);
+                ctx.fill();
+
+                // End Dot
+                ctx.beginPath();
+                ctx.arc(x2 + nx * offset, y2 + ny * offset, dotRadius, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Text
+                const ox1 = x1 + nx * offset; // Define ox1, oy1, ox2, oy2 for text positioning
                 const oy1 = y1 + ny * offset;
                 const ox2 = x2 + nx * offset;
                 const oy2 = y2 + ny * offset;
 
-                // Extension Lines (Leaders)
-                ctx.beginPath();
-                ctx.moveTo(x1, y1);
-                ctx.lineTo(ox1 + nx * (0.2 * Math.sign(offset) || 0.2), oy1 + ny * (0.2 * Math.sign(offset) || 0.2)); // Extend slightly past dim line
-                ctx.moveTo(x2, y2);
-                ctx.lineTo(ox2 + nx * (0.2 * Math.sign(offset) || 0.2), oy2 + ny * (0.2 * Math.sign(offset) || 0.2));
-                ctx.stroke();
-
-                // Dimension Line
-                ctx.beginPath();
-                ctx.moveTo(ox1, oy1);
-                ctx.lineTo(ox2, oy2);
-                ctx.stroke();
-
-                // Ends (Ticks/Arrows)
-                const tickSize = 0.1;
-                // Draw small ticks at 45 degrees or dots
-                ctx.beginPath(); ctx.arc(ox1, oy1, tickSize / 2, 0, Math.PI * 2); ctx.fill();
-                ctx.beginPath(); ctx.arc(ox2, oy2, tickSize / 2, 0, Math.PI * 2); ctx.fill();
-
-                // Text
                 const mx = (ox1 + ox2) / 2;
                 const my = (oy1 + oy2) / 2;
 
-                // Rotate text to align with line? 
-                // For simplicity, keep horizontal but offset correctly
-                // Or rotate if vertical
-
-                // Simple text placement for now: slightly above the line
-                // Adjust text baseline based on offset direction
                 ctx.save();
                 ctx.translate(mx, my);
-                // Rotate text if line is vertical-ish
-                const angle = Math.atan2(dy, dx);
-                if (Math.abs(angle) > Math.PI / 4 && Math.abs(angle) < 3 * Math.PI / 4) {
-                    ctx.rotate(angle - Math.PI / 2); // Rotate to be vertical
+
+                // Calculate angle
+                let angle = Math.atan2(dy, dx);
+                // Ensure text is always upright (readable from bottom or right)
+                if (angle > Math.PI / 2 || angle <= -Math.PI / 2) {
+                    angle += Math.PI;
+                }
+                ctx.rotate(angle);
+
+                // Check for vertical flip (scale Y is negative)
+                const transform = ctx.getTransform();
+                if (transform.d < 0) {
+                    ctx.scale(1, -1);
                 }
 
-                ctx.fillText(text, 0, -0.2 * Math.sign(offset || 1));
+                // Text Background (to avoid overlap)
+                ctx.textBaseline = 'middle';
+                const textMetrics = ctx.measureText(text);
+                const padding = 2 * fontScale;
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.9)'; // Semi-transparent white
+                ctx.fillRect(
+                    -textMetrics.width / 2 - padding,
+                    -12 * fontScale / 2 - padding,
+                    textMetrics.width + padding * 2,
+                    12 * fontScale + padding * 2
+                );
+
+                ctx.fillStyle = '#666';
+                ctx.fillText(text, 0, 0);
                 ctx.restore();
 
                 ctx.restore();
@@ -2162,17 +2337,7 @@
             }, { passive: false });
 
             // ... (Clear/Undo listeners) ...
-            inputs.clearBtn.addEventListener('click', () => {
-                path = [];
-                update();
-            });
-
-            inputs.undoBtn.addEventListener('click', () => {
-                if (path.length > 0) {
-                    path.pop();
-                    update();
-                }
-            });
+            // Old listeners removed (replaced by new ones below)
 
             // Mode Switching Logic
             let interactionMode = 'draw'; // 'draw', 'pan'
@@ -2304,12 +2469,36 @@
                 update();
             }
 
-
             // Override mouseleave to clear rubber-band
-            canvas.removeEventListener('mouseleave', stopDrawing); // Remove old listener
+            canvas.removeEventListener('mouseleave', stopDrawing);
             canvas.addEventListener('mouseleave', (e) => {
                 isDrawing = false;
                 currentMousePos = null;
+                update();
+            });
+
+            // Right-click to finish path
+            canvas.addEventListener('contextmenu', (e) => {
+                e.preventDefault();
+                if (path.length > 0) {
+                    paths.push([...path]); // Commit current path
+                    path = []; // Start new path
+                    update();
+                }
+            });
+
+            inputs.clearBtn.addEventListener('click', () => {
+                path = [];
+                paths = [];
+                update();
+            });
+
+            inputs.undoBtn.addEventListener('click', () => {
+                if (path.length > 0) {
+                    path.pop();
+                } else if (paths.length > 0) {
+                    path = paths.pop();
+                }
                 update();
             });
 
@@ -2333,11 +2522,19 @@
             function update() {
                 renderer.clear();
 
-                // 1. Draw Center Line (Committed + Rubber band)
+                // 0. Draw Completed Paths
+                paths.forEach(p => {
+                    renderer.drawPath(p, null);
+                    if (p.length > 1) {
+                        const states = engine.simulate(p, vehicle);
+                        renderer.drawSimulation(states, vehicle);
+                    }
+                });
+
+                // 1. Draw Current Path
                 renderer.drawPath(path, currentMousePos);
 
-                // 2. Simulate & Draw Vehicle (Committed + Preview)
-                // Construct path for simulation
+                // 2. Simulate & Draw Vehicle
                 let simPath = [...path];
                 if (interactionMode === 'draw' && !isPanning && currentMousePos && calibrationState === 'none') {
                     if (path.length > 0) {
@@ -2348,9 +2545,6 @@
                         }
                     }
                 }
-
-                // Debug Preview
-                // console.log(`Path: ${path.length}, SimPath: ${simPath.length}, Mouse: ${currentMousePos ? 'Yes' : 'No'}`);
 
                 if (simPath.length > 1) {
                     const states = engine.simulate(simPath, vehicle);
@@ -2541,90 +2735,106 @@
 
             inputs.exportDxfBtn.addEventListener('click', () => {
                 try {
-                    if (path.length < 2) {
+                    const allPaths = [...paths];
+                    if (path.length > 1) {
+                        allPaths.push(path);
+                    }
+
+                    if (allPaths.length === 0) {
                         alert("軌跡を描画してください (Please draw a path first)");
                         return;
                     }
 
-                    const states = engine.simulate(path, vehicle);
-                    if (!states || states.length === 0) return;
-
                     const selectedVersion = 'AC1032';
                     const dxf = new DxfWriter(selectedVersion);
 
-                    // 1. Tractor Path (Red) - Rear Axle Center
-                    // DXF Y is usually Up. Flip Y for CAD compatibility.
+                    // Helper to flip Y
                     const flipY = (pts) => pts.map(p => ({ x: p.x, y: -p.y }));
 
-                    dxf.addPolyline(flipY(states), "Trajectory_Tractor");
+                    allPaths.forEach((p, index) => {
+                        const states = engine.simulate(p, vehicle);
+                        if (!states || states.length === 0) return;
 
-                    // 2. Trailer Path (Green)
-                    if (vehicle.hasTrailer) {
-                        const trailerPath = states.map(s => s.trailer);
-                        dxf.addPolyline(flipY(trailerPath), "Trajectory_Trailer");
-                    }
+                        const suffix = `_${index + 1}`;
 
-                    // 3. Swept Path (Blue)
-                    // Tractor FL
-                    dxf.addPolyline(flipY(states.map(s => s.envelope.tractor.fl)), "Swept_Path");
-                    // Tractor FR
-                    dxf.addPolyline(flipY(states.map(s => s.envelope.tractor.fr)), "Swept_Path");
+                        // 1. Tractor Path (Red)
+                        dxf.addPolyline(flipY(states), "Trajectory_Tractor" + suffix);
 
-                    if (vehicle.hasTrailer) {
-                        dxf.addPolyline(flipY(states.map(s => s.envelope.trailer.rl)), "Swept_Path");
-                        dxf.addPolyline(flipY(states.map(s => s.envelope.trailer.rr)), "Swept_Path");
-                    } else {
-                        dxf.addPolyline(flipY(states.map(s => s.envelope.tractor.rl)), "Swept_Path");
-                        dxf.addPolyline(flipY(states.map(s => s.envelope.tractor.rr)), "Swept_Path");
-                    }
+                        // 2. Trailer Path (Green)
+                        if (vehicle.hasTrailer) {
+                            const trailerPath = states.map(s => s.trailer);
+                            dxf.addPolyline(flipY(trailerPath), "Trajectory_Trailer" + suffix);
+                        }
 
-                    // 4. Vehicle Body (White/Black)
-                    const step = Math.floor(states.length / 10) || 1;
+                        // 3. Swept Path (Blue)
+                        dxf.addPolyline(flipY(states.map(s => s.envelope.tractor.fl)), "Swept_Path" + suffix);
+                        dxf.addPolyline(flipY(states.map(s => s.envelope.tractor.fr)), "Swept_Path" + suffix);
 
-                    const getRectCorners = (cx, cy, heading, lenFront, lenRear, width) => {
-                        const halfW = width / 2;
-                        // Corners relative to center
-                        const corners = [
-                            { lx: lenFront, ly: halfW },
-                            { lx: lenFront, ly: -halfW },
-                            { lx: -lenRear, ly: -halfW },
-                            { lx: -lenRear, ly: halfW },
-                            { lx: lenFront, ly: halfW } // Close loop
-                        ];
+                        if (vehicle.hasTrailer) {
+                            dxf.addPolyline(flipY(states.map(s => s.envelope.trailer.rl)), "Swept_Path" + suffix);
+                            dxf.addPolyline(flipY(states.map(s => s.envelope.trailer.rr)), "Swept_Path" + suffix);
+                        } else {
+                            dxf.addPolyline(flipY(states.map(s => s.envelope.tractor.rl)), "Swept_Path" + suffix);
+                            dxf.addPolyline(flipY(states.map(s => s.envelope.tractor.rr)), "Swept_Path" + suffix);
+                        }
 
-                        return corners.map(c => engine.transformPoint(c.lx, c.ly, cx, cy, heading));
-                    };
+                        // 4. Vehicle Body (White/Black) - Only for the last state of each path?
+                        // Or maybe at intervals? Let's do start and end for clarity, or intervals.
+                        // Keeping existing logic: intervals.
+                        const step = Math.floor(states.length / 10) || 1;
 
-                    for (let i = 0; i < states.length; i += step) {
-                        const s = states[i];
+                        const getRectCorners = (cx, cy, heading, lenFront, lenRear, width) => {
+                            const halfW = width / 2;
+                            const corners = [
+                                { lx: lenFront, ly: halfW },
+                                { lx: lenFront, ly: -halfW },
+                                { lx: -lenRear, ly: -halfW },
+                                { lx: -lenRear, ly: halfW },
+                                { lx: lenFront, ly: halfW }
+                            ];
+                            return corners.map(c => engine.transformPoint(c.lx, c.ly, cx, cy, heading));
+                        };
 
-                        // Tractor
+                        for (let i = 0; i < states.length; i += step) {
+                            const s = states[i];
+                            // Tractor Body
+                            const trFront = vehicle.wheelbase + vehicle.overhangFront;
+                            const trRear = vehicle.overhangRear;
+                            const trPts = getRectCorners(s.x, s.y, s.heading, trFront, trRear, vehicle.width);
+                            dxf.addPolyline(flipY(trPts), "Vehicle_Body" + suffix);
+
+                            if (vehicle.hasTrailer && s.trailer) {
+                                const tFront = vehicle.trailerWheelbase; // Approximate front of trailer body relative to axle?
+                                // Actually trailer body is usually defined by overhangs relative to axle/kingpin.
+                                // Simplified: Kingpin to Rear.
+                                // Let's use the dimensions:
+                                // Front: Kingpin to Front (Overhang Front)
+                                // Rear: Axle to Rear (Overhang Rear)
+                                // Length between Kingpin and Axle is Wheelbase.
+                                // So body extends from +OverhangFront (relative to kingpin?) No, usually front of bed.
+                                // Let's use: Front = trailerWheelbase + trailerOverhangFront (if defined relative to axle)
+                                // Or if defined relative to kingpin...
+                                // Let's stick to what was there: tFront = vehicle.trailerWheelbase.
+                                const tRear = vehicle.trailerOverhangRear;
+                                const tPts = getRectCorners(s.trailer.x, s.trailer.y, s.trailer.heading, tFront, tRear, vehicle.trailerWidth);
+                                dxf.addPolyline(flipY(tPts), "Vehicle_Body" + suffix);
+                            }
+                        }
+
+                        // Always draw the last position fully
+                        const lastS = states[states.length - 1];
                         const trFront = vehicle.wheelbase + vehicle.overhangFront;
                         const trRear = vehicle.overhangRear;
-                        const trPts = getRectCorners(s.x, s.y, s.heading, trFront, trRear, vehicle.width);
-                        dxf.addPolyline(flipY(trPts), "Vehicle_Body");
+                        const trPts = getRectCorners(lastS.x, lastS.y, lastS.heading, trFront, trRear, vehicle.width);
+                        dxf.addPolyline(flipY(trPts), "Vehicle_Body" + suffix);
 
-                        // Trailer
-                        if (vehicle.hasTrailer && s.trailer) {
+                        if (vehicle.hasTrailer && lastS.trailer) {
                             const tFront = vehicle.trailerWheelbase;
                             const tRear = vehicle.trailerOverhangRear;
-                            const tPts = getRectCorners(s.trailer.x, s.trailer.y, s.trailer.heading, tFront, tRear, vehicle.trailerWidth);
-                            dxf.addPolyline(flipY(tPts), "Vehicle_Body");
+                            const tPts = getRectCorners(lastS.trailer.x, lastS.trailer.y, lastS.trailer.heading, tFront, tRear, vehicle.trailerWidth);
+                            dxf.addPolyline(flipY(tPts), "Vehicle_Body" + suffix);
                         }
-                    }
-                    // Always draw last one
-                    const lastS = states[states.length - 1];
-                    const trFront = vehicle.wheelbase + vehicle.overhangFront;
-                    const trRear = vehicle.overhangRear;
-                    const trPts = getRectCorners(lastS.x, lastS.y, lastS.heading, trFront, trRear, vehicle.width);
-                    dxf.addPolyline(flipY(trPts), "Vehicle_Body");
-
-                    if (vehicle.hasTrailer && lastS.trailer) {
-                        const tFront = vehicle.trailerWheelbase;
-                        const tRear = vehicle.trailerOverhangRear;
-                        const tPts = getRectCorners(lastS.trailer.x, lastS.trailer.y, lastS.trailer.heading, tFront, tRear, vehicle.trailerWidth);
-                        dxf.addPolyline(flipY(tPts), "Vehicle_Body");
-                    }
+                    });
 
                     // Download
                     const blob = dxf.toBlob();
@@ -2644,4 +2854,4 @@
         });
     </script>
 
-</body>
+</body>```

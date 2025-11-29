@@ -1569,6 +1569,12 @@
                 }
             });
 
+            inputs.openSettingsBtn.addEventListener('click', () => {
+                inputs.settingsModal.style.display = 'block';
+                loadModalValues();
+                drawPreview();
+            });
+
             function updateInputDisplay() {
                 // Sidebar inputs were removed/simplified
             }

@@ -363,11 +363,11 @@
     <!-- PDF.js -->
     <!-- Calibration Distance Modal -->
     <div id="calibrationModal" class="modal">
-        <div class="modal-content" style="width: 300px;">
+        <div class="modal-content" style="width: 360px;">
             <h3>距離入力 (Distance)</h3>
-            <p style="margin-bottom: 8px; font-size: 14px; color: #64748b;">点A-点B間の実際の距離(m)を入力してください:</p>
+            <p style="margin-bottom: 8px; font-size: 14px; color: #64748b;">点A-点B間の実際の距離(m)を入力してください</p>
             <input type="number" id="calDistanceInput" value="5.0" step="0.1" min="0.1"
-                style="width: 100%; margin-bottom: 16px; font-size: 16px;">
+                style="width: 100%; margin-bottom: 16px; font-size: 16px; box-sizing: border-box;">
             <div style="display: flex; justify-content: flex-end; gap: 10px;">
                 <button id="calCancelBtn"
                     style="padding: 6px 12px; border: 1px solid #ccc; background: white; border-radius: 4px; cursor: pointer;">キャンセル</button>
@@ -528,8 +528,14 @@
 
     <script>
         // エラーハンドリング
+        // エラーハンドリング
         window.onerror = function (message, source, lineno, colno, error) {
-            alert('エラーが発生しました: ' + message);
+            if (message === 'Script error.') {
+                // Ignore generic cross-origin errors
+                return;
+            }
+            console.error(message, source, lineno, colno, error);
+            // alert('エラーが発生しました: ' + message); // Disable alert for production
         };
 
         /* 車両プリセットデータ (推定値含む) */

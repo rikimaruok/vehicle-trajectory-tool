@@ -361,6 +361,22 @@
         }
     </style>
     <!-- PDF.js -->
+    <!-- Calibration Distance Modal -->
+    <div id="calibrationModal" class="modal">
+        <div class="modal-content" style="width: 300px;">
+            <h3>距離入力 (Distance)</h3>
+            <p style="margin-bottom: 8px; font-size: 14px; color: #64748b;">点A-点B間の実際の距離(m)を入力してください:</p>
+            <input type="number" id="calDistanceInput" value="5.0" step="0.1" min="0.1"
+                style="width: 100%; margin-bottom: 16px; font-size: 16px;">
+            <div style="display: flex; justify-content: flex-end; gap: 10px;">
+                <button id="calCancelBtn"
+                    style="padding: 6px 12px; border: 1px solid #ccc; background: white; border-radius: 4px; cursor: pointer;">キャンセル</button>
+                <button id="calOkBtn"
+                    style="padding: 6px 12px; border: none; background: var(--primary-color); color: white; border-radius: 4px; cursor: pointer;">OK</button>
+            </div>
+        </div>
+    </div>
+
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <script>
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
@@ -1055,8 +1071,41 @@
                 m_trailerOverhangFront: document.getElementById('m_trailerOverhangFront'),
                 m_trailerOverhangRear: document.getElementById('m_trailerOverhangRear'),
                 m_hitchOffset: document.getElementById('m_hitchOffset'),
-                m_trailerParams: document.getElementById('m_trailerParams')
+                m_trailerParams: document.getElementById('m_trailerParams'),
+
+                // Calibration Modal
+                calibrationModal: document.getElementById('calibrationModal'),
+                calDistanceInput: document.getElementById('calDistanceInput'),
+                calOkBtn: document.getElementById('calOkBtn'),
+                calCancelBtn: document.getElementById('calCancelBtn')
             };
+
+            // --- Calibration Modal Logic ---
+            let tempDistImagePixels = 0;
+
+            inputs.calOkBtn.addEventListener('click', () => {
+                const realDist = parseFloat(inputs.calDistanceInput.value);
+                if (realDist > 0 && tempDistImagePixels > 0) {
+                    bgMetersPerPixel = realDist / tempDistImagePixels;
+                    alert(`尺度を調整しました(Scale updated): 1px = ${bgMetersPerPixel.toFixed(4)} m`);
+                    closeCalibrationModal();
+                } else {
+                    alert("有効な数値を入力してください (Invalid number)");
+                }
+            });
+
+            inputs.calCancelBtn.addEventListener('click', () => {
+                closeCalibrationModal();
+            });
+
+            function closeCalibrationModal() {
+                inputs.calibrationModal.style.display = 'none';
+                calibrationState = 'none';
+                calPoint1 = null;
+                calPoint2 = null;
+                inputs.calibrationStatus.classList.add('hidden');
+                update();
+            }
 
             // --- Settings Panel Logic ---
             inputs.toggleSettingsBtn.addEventListener('click', () => {
@@ -1124,15 +1173,21 @@
             });
 
             inputs.calibrateBtn.addEventListener('click', () => {
-                if (!bgImageElement) {
-                    alert('先に背景画像を読み込んでください (Please load a background first)');
-                    return;
+                try {
+                    console.log("Calibrate button clicked");
+                    if (!bgImageElement) {
+                        alert('先に背景画像を読み込んでください (Please load a background first)');
+                        return;
+                    }
+                    calibrationState = 'point1';
+                    loadModalValues();
+                    drawPreview();
+                    inputs.calibrationStatus.classList.remove('hidden');
+                    inputs.calibrationStatus.textContent = "図面上の点Aをクリックしてください (1/2)";
+                } catch (e) {
+                    alert("Calibrate Error: " + e.message);
+                    console.error(e);
                 }
-                calibrationState = 'point1';
-                loadModalValues();
-                drawPreview();
-                inputs.calibrationStatus.classList.remove('hidden');
-                inputs.calibrationStatus.textContent = "図面上の点Aをクリックしてください (1/2)";
             });
 
             // Override Renderer drawPath to support custom image scaling and rubber-band UI
@@ -1227,37 +1282,83 @@
             // --- Event Listeners ---
 
             // Canvas Interaction
-            canvas.addEventListener('mousedown', (e) => {
-                const rect = canvas.getBoundingClientRect();
-                const x = (e.clientX - rect.left);
-                const y = (e.clientY - rect.top);
-                const worldPos = renderer.toWorld(x, y);
+            // (Listeners are defined below in startDrawing/draw/stopDrawing)
 
-                if (calibrationState !== 'none') {
-                    handleCalibrationClick(worldPos.x, worldPos.y);
+            function startDrawing(e) {
+                // Calibration Logic (Priority)
+                if (calibrationState === 'point1') {
+                    const rect = canvas.getBoundingClientRect();
+                    const x = e.clientX - rect.left;
+                    const y = e.clientY - rect.top;
+                    calPoint1 = renderer.toWorld(x, y);
+
+                    calibrationState = 'point2';
+                    inputs.calibrationStatus.textContent = '点Bをクリックしてください (Click Point B)';
+                    update();
                     return;
                 }
 
-                isDrawing = true;
-                path.push(worldPos);
-                draw();
-            });
+                if (calibrationState === 'point2') {
+                    try {
+                        const rect = canvas.getBoundingClientRect();
+                        const x = e.clientX - rect.left;
+                        const y = e.clientY - rect.top;
+                        calPoint2 = renderer.toWorld(x, y);
 
-            canvas.addEventListener('mousemove', (e) => {
-                if (!isDrawing) return;
-                const rect = canvas.getBoundingClientRect();
-                const x = (e.clientX - rect.left);
-                const y = (e.clientY - rect.top);
-                const worldPos = renderer.toWorld(x, y);
+                        if (!calPoint1) {
+                            calibrationState = 'point1';
+                            inputs.calibrationStatus.textContent = '点Aをクリックしてください (1/2)';
+                            update();
+                            return;
+                        }
 
-                // Simple distance filter
-                const last = path[path.length - 1];
-                const dist = Math.hypot(worldPos.x - last.x, worldPos.y - last.y);
-                if (dist > 0.1) { // 10cm
-                    path.push(worldPos);
-                    draw();
+                        const distWorld = Math.hypot(calPoint2.x - calPoint1.x, calPoint2.y - calPoint1.y);
+                        tempDistImagePixels = distWorld / bgMetersPerPixel;
+
+                        // Show Modal
+                        inputs.calibrationModal.style.display = 'block';
+                        inputs.calDistanceInput.focus();
+
+                        update(); // Show point B
+                    } catch (err) {
+                        console.error(err);
+                        calibrationState = 'none';
+                        update();
+                    }
+                    return;
                 }
-            });
+
+                // Normal Drawing Logic
+                if (calibrationState !== 'none') return;
+
+                isDrawing = true;
+                addPoint(e);
+            }
+
+            function loadModalValues() {
+                inputs.m_width.value = vehicle.width;
+                inputs.m_wheelbase.value = vehicle.wheelbase;
+                inputs.m_overhangFront.value = vehicle.overhangFront;
+                inputs.m_overhangRear.value = vehicle.overhangRear;
+                inputs.m_maxSteering.value = (vehicle.maxSteeringAngle * 180 / Math.PI).toFixed(0);
+
+                inputs.m_hasTrailer.checked = vehicle.hasTrailer;
+                inputs.m_trailerWidth.value = vehicle.trailerWidth;
+                inputs.m_trailerWheelbase.value = vehicle.trailerWheelbase;
+                inputs.m_trailerOverhangFront.value = vehicle.trailerOverhangFront || 0;
+                inputs.m_trailerOverhangRear.value = vehicle.trailerOverhangRear;
+                inputs.m_hitchOffset.value = vehicle.hitchOffset;
+
+                // toggleModalTrailer is defined below
+                if (typeof toggleModalTrailer === 'function') {
+                    toggleModalTrailer();
+                } else {
+                    // Fallback if not yet defined (though it should be hoisted or defined below)
+                    inputs.m_trailerParams.style.display = inputs.m_hasTrailer.checked ? 'block' : 'none';
+                }
+            }
+
+            // Duplicate listeners and helpers removed
 
             canvas.addEventListener('mouseup', () => {
                 isDrawing = false;
@@ -1322,22 +1423,6 @@
                 drawPreview();
             }
 
-            function loadModalValues() {
-                inputs.m_width.value = vehicle.width;
-                inputs.m_wheelbase.value = vehicle.wheelbase;
-                inputs.m_overhangFront.value = vehicle.overhangFront;
-                inputs.m_overhangRear.value = vehicle.overhangRear;
-                inputs.m_maxSteering.value = (vehicle.maxSteeringAngle * 180 / Math.PI).toFixed(0);
-
-                inputs.m_hasTrailer.checked = vehicle.hasTrailer;
-                inputs.m_trailerWidth.value = vehicle.trailerWidth;
-                inputs.m_trailerWheelbase.value = vehicle.trailerWheelbase;
-                inputs.m_trailerOverhangFront.value = vehicle.trailerOverhangFront || 0;
-                inputs.m_trailerOverhangRear.value = vehicle.trailerOverhangRear;
-                inputs.m_hitchOffset.value = vehicle.hitchOffset;
-
-                toggleModalTrailer();
-            }
 
             function saveModalValues() {
                 vehicle.width = parseFloat(inputs.m_width.value);
@@ -1813,11 +1898,13 @@
             });
             renderer.resize();
 
+            // Event Listeners
             canvas.addEventListener('mousedown', startDrawing);
             canvas.addEventListener('mousemove', draw);
             canvas.addEventListener('mouseup', stopDrawing);
             canvas.addEventListener('mouseleave', stopDrawing);
 
+            // ... (Clear/Undo listeners) ...
             inputs.clearBtn.addEventListener('click', () => {
                 path = [];
                 update();
@@ -1830,46 +1917,31 @@
                 }
             });
 
-            let currentMousePos = null; // Track current mouse position in world coordinates
+            let currentMousePos = null;
 
-            function startDrawing(e) {
-                if (calibrationState === 'point1') {
-                    const rect = canvas.getBoundingClientRect();
-                    const x = e.clientX - rect.left;
-                    const y = e.clientY - rect.top;
-                    calPoint1 = renderer.toWorld(x, y);
-                    calibrationState = 'point2';
-                    inputs.calibrationStatus.textContent = '点Bをクリックしてください (Click Point B)';
+            // handleCalibrationClick removed, logic moved to startDrawing
+
+            function addPoint(e, isMove = false) {
+                const rect = canvas.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const y = e.clientY - rect.top;
+                const worldPos = renderer.toWorld(x, y);
+
+                if (!isMove) {
+                    // Click (add point)
+                    path.push(worldPos);
                     update();
-                    return;
-                }
-                if (calibrationState === 'point2') {
-                    const rect = canvas.getBoundingClientRect();
-                    const x = e.clientX - rect.left;
-                    const y = e.clientY - rect.top;
-                    calPoint2 = renderer.toWorld(x, y);
-                    const distWorld = Math.hypot(calPoint2.x - calPoint1.x, calPoint2.y - calPoint1.y);
-                    const distImagePixels = distWorld / bgMetersPerPixel;
-
-                    const realDistStr = prompt("点A-点B間の実際の距離(m)を入力してください (Enter real distance in meters):", "5.0");
-                    if (realDistStr) {
-                        const realDist = parseFloat(realDistStr);
-                        if (realDist > 0) {
-                            bgMetersPerPixel = realDist / distImagePixels;
-                            alert(`尺度を調整しました(Scale updated): 1px = ${bgMetersPerPixel.toFixed(4)} m`);
+                } else {
+                    // Drag (add point if distance > threshold)
+                    const last = path[path.length - 1];
+                    if (last) {
+                        const dist = Math.hypot(worldPos.x - last.x, worldPos.y - last.y);
+                        if (dist > 0.1) { // 10cm threshold
+                            path.push(worldPos);
+                            update();
                         }
                     }
-
-                    calibrationState = 'none';
-                    calPoint1 = null;
-                    calPoint2 = null;
-                    inputs.calibrationStatus.classList.add('hidden');
-                    update();
-                    return;
                 }
-
-                isDrawing = true;
-                addPoint(e);
             }
 
             function draw(e) {
@@ -1889,6 +1961,7 @@
                 isDrawing = false;
                 update();
             }
+
 
             // Override mouseleave to clear rubber-band
             canvas.removeEventListener('mouseleave', stopDrawing); // Remove old listener

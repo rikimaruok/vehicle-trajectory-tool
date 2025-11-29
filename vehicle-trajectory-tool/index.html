@@ -17,14 +17,37 @@
 
         #sidebar {
             width: 300px;
-            background: #f0f0f0;
-            padding: 20px;
-            box-shadow: 2px 0 5px rgba(0, 0, 0, 0.1);
+            background: #c0c0c0;
+            padding: 10px;
+            border-right: 2px solid #fff;
+            border-bottom: 2px solid #fff;
+            box-shadow: inset -1px -1px #000, inset 1px 1px #dfdfdf;
             display: flex;
             flex-direction: column;
-            gap: 15px;
-            z-index: 10;
+            gap: 10px;
+            z-index: 1000;
+            /* High z-index to float above canvas */
             overflow-y: auto;
+            position: absolute;
+            /* Floating */
+            top: 20px;
+            left: 20px;
+            max-height: 90vh;
+            /* Prevent going off screen too much */
+            border: 2px solid;
+            /* Full border for window look */
+            border-color: #dfdfdf #000 #000 #dfdfdf;
+        }
+
+        #sidebarHeader {
+            padding: 5px;
+            cursor: move;
+            background-color: #000080;
+            color: #fff;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
         }
 
         #canvas-container {
@@ -237,6 +260,9 @@
 <body>
 
     <div id="sidebar">
+        <div id="sidebarHeader">
+            <span>Menu</span>
+        </div>
         <h2>車両設定</h2>
 
         <div class="control-group">
@@ -1905,102 +1931,154 @@
             const exportBtn = inputs.exportDxfBtn;
 
             inputs.exportDxfBtn.addEventListener('click', () => {
-                if (path.length < 2) {
-                    alert("軌跡を描画してください (Please draw a path first)");
-                    return;
-                }
+                try {
+                    if (path.length < 2) {
+                        alert("軌跡を描画してください (Please draw a path first)");
+                        return;
+                    }
 
-                const states = engine.simulate(path, vehicle);
-                if (!states || states.length === 0) return;
+                    const states = engine.simulate(path, vehicle);
+                    if (!states || states.length === 0) return;
 
-                const selectedVersion = 'AC1032';
-                const dxf = new DxfWriter(selectedVersion);
+                    const selectedVersion = 'AC1032';
+                    const dxf = new DxfWriter(selectedVersion);
 
-                // 1. Tractor Path (Red) - Rear Axle Center
-                // DXF Y is usually Up. Flip Y for CAD compatibility.
-                const flipY = (pts) => pts.map(p => ({ x: p.x, y: -p.y }));
+                    // 1. Tractor Path (Red) - Rear Axle Center
+                    // DXF Y is usually Up. Flip Y for CAD compatibility.
+                    const flipY = (pts) => pts.map(p => ({ x: p.x, y: -p.y }));
 
-                dxf.addPolyline(flipY(states), "Trajectory_Tractor");
+                    dxf.addPolyline(flipY(states), "Trajectory_Tractor");
 
-                // 2. Trailer Path (Green)
-                if (vehicle.hasTrailer) {
-                    const trailerPath = states.map(s => s.trailer);
-                    dxf.addPolyline(flipY(trailerPath), "Trajectory_Trailer");
-                }
+                    // 2. Trailer Path (Green)
+                    if (vehicle.hasTrailer) {
+                        const trailerPath = states.map(s => s.trailer);
+                        dxf.addPolyline(flipY(trailerPath), "Trajectory_Trailer");
+                    }
 
-                // 3. Swept Path (Blue)
-                // Tractor FL
-                dxf.addPolyline(flipY(states.map(s => s.envelope.tractor.fl)), "Swept_Path");
-                // Tractor FR
-                dxf.addPolyline(flipY(states.map(s => s.envelope.tractor.fr)), "Swept_Path");
+                    // 3. Swept Path (Blue)
+                    // Tractor FL
+                    dxf.addPolyline(flipY(states.map(s => s.envelope.tractor.fl)), "Swept_Path");
+                    // Tractor FR
+                    dxf.addPolyline(flipY(states.map(s => s.envelope.tractor.fr)), "Swept_Path");
 
-                if (vehicle.hasTrailer) {
-                    dxf.addPolyline(flipY(states.map(s => s.envelope.trailer.rl)), "Swept_Path");
-                    dxf.addPolyline(flipY(states.map(s => s.envelope.trailer.rr)), "Swept_Path");
-                } else {
-                    dxf.addPolyline(flipY(states.map(s => s.envelope.tractor.rl)), "Swept_Path");
-                    dxf.addPolyline(flipY(states.map(s => s.envelope.tractor.rr)), "Swept_Path");
-                }
+                    if (vehicle.hasTrailer) {
+                        dxf.addPolyline(flipY(states.map(s => s.envelope.trailer.rl)), "Swept_Path");
+                        dxf.addPolyline(flipY(states.map(s => s.envelope.trailer.rr)), "Swept_Path");
+                    } else {
+                        dxf.addPolyline(flipY(states.map(s => s.envelope.tractor.rl)), "Swept_Path");
+                        dxf.addPolyline(flipY(states.map(s => s.envelope.tractor.rr)), "Swept_Path");
+                    }
 
-                // 4. Vehicle Body (White/Black)
-                const step = Math.floor(states.length / 10) || 1;
+                    // 4. Vehicle Body (White/Black)
+                    const step = Math.floor(states.length / 10) || 1;
 
-                const getRectCorners = (cx, cy, heading, lenFront, lenRear, width) => {
-                    const halfW = width / 2;
-                    // Corners relative to center
-                    const corners = [
-                        { lx: lenFront, ly: halfW },
-                        { lx: lenFront, ly: -halfW },
-                        { lx: -lenRear, ly: -halfW },
-                        { lx: -lenRear, ly: halfW },
-                        { lx: lenFront, ly: halfW } // Close loop
-                    ];
+                    const getRectCorners = (cx, cy, heading, lenFront, lenRear, width) => {
+                        const halfW = width / 2;
+                        // Corners relative to center
+                        const corners = [
+                            { lx: lenFront, ly: halfW },
+                            { lx: lenFront, ly: -halfW },
+                            { lx: -lenRear, ly: -halfW },
+                            { lx: -lenRear, ly: halfW },
+                            { lx: lenFront, ly: halfW } // Close loop
+                        ];
 
-                    return corners.map(c => engine.transformPoint(c.lx, c.ly, cx, cy, heading));
-                };
+                        return corners.map(c => engine.transformPoint(c.lx, c.ly, cx, cy, heading));
+                    };
 
-                for (let i = 0; i < states.length; i += step) {
-                    const s = states[i];
+                    for (let i = 0; i < states.length; i += step) {
+                        const s = states[i];
 
-                    // Tractor
+                        // Tractor
+                        const trFront = vehicle.wheelbase + vehicle.overhangFront;
+                        const trRear = vehicle.overhangRear;
+                        const trPts = getRectCorners(s.x, s.y, s.heading, trFront, trRear, vehicle.width);
+                        dxf.addPolyline(flipY(trPts), "Vehicle_Body");
+
+                        // Trailer
+                        if (vehicle.hasTrailer && s.trailer) {
+                            const tFront = vehicle.trailerWheelbase;
+                            const tRear = vehicle.trailerOverhangRear;
+                            const tPts = getRectCorners(s.trailer.x, s.trailer.y, s.trailer.heading, tFront, tRear, vehicle.trailerWidth);
+                            dxf.addPolyline(flipY(tPts), "Vehicle_Body");
+                        }
+                    }
+                    // Always draw last one
+                    const lastS = states[states.length - 1];
                     const trFront = vehicle.wheelbase + vehicle.overhangFront;
                     const trRear = vehicle.overhangRear;
-                    const trPts = getRectCorners(s.x, s.y, s.heading, trFront, trRear, vehicle.width);
+                    const trPts = getRectCorners(lastS.x, lastS.y, lastS.heading, trFront, trRear, vehicle.width);
                     dxf.addPolyline(flipY(trPts), "Vehicle_Body");
 
-                    // Trailer
-                    if (vehicle.hasTrailer && s.trailer) {
+                    if (vehicle.hasTrailer && lastS.trailer) {
                         const tFront = vehicle.trailerWheelbase;
                         const tRear = vehicle.trailerOverhangRear;
-                        const tPts = getRectCorners(s.trailer.x, s.trailer.y, s.trailer.heading, tFront, tRear, vehicle.trailerWidth);
+                        const tPts = getRectCorners(lastS.trailer.x, lastS.trailer.y, lastS.trailer.heading, tFront, tRear, vehicle.trailerWidth);
                         dxf.addPolyline(flipY(tPts), "Vehicle_Body");
                     }
-                }
-                // Always draw last one
-                const lastS = states[states.length - 1];
-                const trFront = vehicle.wheelbase + vehicle.overhangFront;
-                const trRear = vehicle.overhangRear;
-                const trPts = getRectCorners(lastS.x, lastS.y, lastS.heading, trFront, trRear, vehicle.width);
-                dxf.addPolyline(flipY(trPts), "Vehicle_Body");
 
-                if (vehicle.hasTrailer && lastS.trailer) {
-                    const tFront = vehicle.trailerWheelbase;
-                    const tRear = vehicle.trailerOverhangRear;
-                    const tPts = getRectCorners(lastS.trailer.x, lastS.trailer.y, lastS.trailer.heading, tFront, tRear, vehicle.trailerWidth);
-                    dxf.addPolyline(flipY(tPts), "Vehicle_Body");
+                    // Download
+                    const blob = dxf.toBlob();
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `trajectory_${selectedVersion}.dxf`;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                } catch (e) {
+                    alert("Export Error: " + e.message);
+                    console.error(e);
                 }
-
-                // Download
-                const blob = dxf.toBlob();
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = `trajectory_${selectedVersion}.dxf`;
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
             });
+
+            // Draggable Sidebar Logic
+            const sidebar = document.getElementById('sidebar');
+            const sidebarHeader = document.getElementById('sidebarHeader');
+            let isDragging = false;
+            let currentX;
+            let currentY;
+            let initialX;
+            let initialY;
+            let xOffset = 0;
+            let yOffset = 0;
+
+            sidebarHeader.addEventListener("mousedown", dragStart);
+            document.addEventListener("mouseup", dragEnd);
+            document.addEventListener("mousemove", drag);
+
+            function dragStart(e) {
+                initialX = e.clientX - xOffset;
+                initialY = e.clientY - yOffset;
+
+                if (e.target === sidebarHeader || e.target.parentNode === sidebarHeader) {
+                    isDragging = true;
+                }
+            }
+
+            function dragEnd(e) {
+                initialX = currentX;
+                initialY = currentY;
+                isDragging = false;
+            }
+
+            function drag(e) {
+                if (isDragging) {
+                    e.preventDefault();
+                    currentX = e.clientX - initialX;
+                    currentY = e.clientY - initialY;
+
+                    xOffset = currentX;
+                    yOffset = currentY;
+
+                    setTranslate(currentX, currentY, sidebar);
+                }
+            }
+
+            function setTranslate(xPos, yPos, el) {
+                el.style.transform = "translate3d(" + xPos + "px, " + yPos + "px, 0)";
+            }
         });
     </script>
 

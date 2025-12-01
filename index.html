@@ -2428,6 +2428,9 @@
                 // Normal Drawing Logic
                 if (calibrationState !== 'none') return;
 
+                // Ignore right-click (button 2) or middle-click (button 1) for adding points
+                if (e.button !== 0) return;
+
                 isDrawing = true;
                 addPoint(e);
             }

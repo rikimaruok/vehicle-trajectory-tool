@@ -882,96 +882,148 @@
                 };
             }
 
+            getVehicleCorners(axleX, axleY, heading, frontOverhangFromAxle, rearOverhangFromAxle, width) {
+                const halfW = width / 2;
+                return {
+                    fl: this.transformPoint(frontOverhangFromAxle, halfW, axleX, axleY, heading),
+                    fr: this.transformPoint(frontOverhangFromAxle, -halfW, axleX, axleY, heading),
+                    rl: this.transformPoint(rearOverhangFromAxle, halfW, axleX, axleY, heading),
+                    rr: this.transformPoint(rearOverhangFromAxle, -halfW, axleX, axleY, heading)
+                };
+            }
+
             simulate(path, vehicle, referencePoint = 'rear') {
                 if (!path || path.length < 2) return [];
 
                 const states = [];
 
-                let currentPos = { x: path[0].x, y: path[0].y };
-                let currentHeading = Math.atan2(path[1].y - path[0].y, path[1].x - path[0].x);
-
-                // Adjust start position if Reference is Front
                 if (referencePoint === 'front') {
-                    // path[0] is Front Axle Center.
-                    // We need to calculate Rear Axle Center (currentPos) based on heading.
-                    currentPos = {
-                        x: path[0].x - vehicle.wheelbase * Math.cos(currentHeading),
-                        y: path[0].y - vehicle.wheelbase * Math.sin(currentHeading)
-                    };
-                }
+                    // --- Front Axle Following (Towing Model) ---
+                    // Initialize Rear Axle Position
+                    // We assume the vehicle starts aligned with the first segment of the path.
+                    const startHeading = Math.atan2(path[1].y - path[0].y, path[1].x - path[0].x);
 
-                // トレーラー初期状態（トラクターと一直線と仮定）
-                let trailerHeading = currentHeading;
-                // 連結点位置
-                let hitchPos = {
-                    x: currentPos.x - vehicle.hitchOffset * Math.cos(currentHeading),
-                    y: currentPos.y - vehicle.hitchOffset * Math.sin(currentHeading)
-                };
-                // トレーラー車軸位置
-                let trailerPos = {
-                    x: hitchPos.x - vehicle.trailerWheelbase * Math.cos(trailerHeading),
-                    y: hitchPos.y - vehicle.trailerWheelbase * Math.sin(trailerHeading)
-                };
+                    // Current Rear Axle Position
+                    let currRearX = path[0].x - vehicle.wheelbase * Math.cos(startHeading);
+                    let currRearY = path[0].y - vehicle.wheelbase * Math.sin(startHeading);
+                    let currHeading = startHeading;
 
-                let targetIndex = 1;
+                    // Trailer State
+                    let trailerHeading = startHeading;
+                    let trailerX = currRearX - vehicle.hitchOffset * Math.cos(currHeading) - vehicle.trailerWheelbase * Math.cos(trailerHeading);
+                    let trailerY = currRearY - vehicle.hitchOffset * Math.sin(currHeading) - vehicle.trailerWheelbase * Math.sin(trailerHeading);
 
-                const maxSteps = 10000;
-                for (let i = 0; i < maxSteps; i++) {
-                    const distToEnd = Math.hypot(path[path.length - 1].x - currentPos.x, path[path.length - 1].y - currentPos.y);
-                    if (distToEnd < 0.5) break;
-
-                    // 1. Pure Pursuit Control
-                    // Determine lookahead point
-                    let lookaheadDist = vehicle.wheelbase * 1.5; // Tuning parameter
-                    if (lookaheadDist < 2.0) lookaheadDist = 2.0;
-
-                    let targetPoint = path[targetIndex];
-
-                    // If Reference is Front, we are following the path with the Front Axle.
-                    // The Pure Pursuit logic needs to be slightly different or we can adapt the target.
-                    // Standard Pure Pursuit:
-                    // Steering = atan(2 * L * sin(alpha) / ld)
-                    // where alpha is angle between vehicle heading and lookahead vector.
-                    // This steers the REAR axle to follow the path with lookahead.
-
-                    // For Front Axle Following:
-                    // We want the Front Axle to be on the path.
-                    // Simple approach:
-                    // 1. Calculate current Front Axle position.
-                    // 2. Find target point on path ahead of Front Axle.
-                    // 3. Steer towards that target.
-
-                    let steeringAngle = 0;
-
-                    if (referencePoint === 'front') {
-                        const frontPos = {
-                            x: currentPos.x + vehicle.wheelbase * Math.cos(currentHeading),
-                            y: currentPos.y + vehicle.wheelbase * Math.sin(currentHeading)
-                        };
-
-                        // Find target point relative to Front Axle
-                        while (targetIndex < path.length - 1) {
-                            const dist = Math.hypot(path[targetIndex].x - frontPos.x, path[targetIndex].y - frontPos.y);
-                            if (dist > lookaheadDist * 0.5) break; // Smaller lookahead for front following?
-                            targetIndex++;
+                    // Interpolate the path to fixed step size first.
+                    const interpolatedPath = [];
+                    interpolatedPath.push(path[0]);
+                    for (let i = 0; i < path.length - 1; i++) {
+                        const p1 = path[i];
+                        const p2 = path[i + 1];
+                        const dist = Math.hypot(p2.x - p1.x, p2.y - p1.y);
+                        const numSteps = Math.ceil(dist / this.stepSize);
+                        for (let j = 1; j <= numSteps; j++) {
+                            const t = j / numSteps;
+                            interpolatedPath.push({
+                                x: p1.x + (p2.x - p1.x) * t,
+                                y: p1.y + (p2.y - p1.y) * t
+                            });
                         }
-                        targetPoint = path[targetIndex];
+                    }
 
-                        const dx = targetPoint.x - frontPos.x;
-                        const dy = targetPoint.y - frontPos.y;
-                        const targetHeading = Math.atan2(dy, dx);
+                    for (let i = 0; i < interpolatedPath.length; i++) {
+                        const frontX = interpolatedPath[i].x;
+                        const frontY = interpolatedPath[i].y;
 
-                        // Steering is simply the difference between target heading and current heading
-                        // (This is a simplified "follow the rabbit" for the front wheel)
-                        let deltaHeading = targetHeading - currentHeading;
+                        // 1. Update Rear Axle (Tractrix)
+                        // The rear axle moves towards the front axle.
+                        // But strictly, the distance must be maintained.
+                        // New Heading is angle from Rear to Front.
+                        const dx = frontX - currRearX;
+                        const dy = frontY - currRearY;
+                        const dist = Math.hypot(dx, dy);
 
-                        // Normalize angle -PI to PI
-                        while (deltaHeading > Math.PI) deltaHeading -= 2 * Math.PI;
-                        while (deltaHeading < -Math.PI) deltaHeading += 2 * Math.PI;
+                        // If distance is very small (start), keep heading.
+                        if (dist > 0.001) {
+                            currHeading = Math.atan2(dy, dx);
+                        }
 
-                        steeringAngle = deltaHeading;
+                        // Update Rear Position to be exactly 'wheelbase' behind Front
+                        currRearX = frontX - vehicle.wheelbase * Math.cos(currHeading);
+                        currRearY = frontY - vehicle.wheelbase * Math.sin(currHeading);
 
-                    } else {
+                        // 2. Update Trailer
+                        if (vehicle.hasTrailer) {
+                            const hitchX = currRearX - vehicle.hitchOffset * Math.cos(currHeading);
+                            const hitchY = currRearY - vehicle.hitchOffset * Math.sin(currHeading);
+
+                            const dxT = hitchX - trailerX;
+                            const dyT = hitchY - trailerY;
+                            const distT = Math.hypot(dxT, dyT);
+
+                            if (distT > 0.001) {
+                                trailerHeading = Math.atan2(dyT, dxT);
+                            }
+
+                            trailerX = hitchX - vehicle.trailerWheelbase * Math.cos(trailerHeading);
+                            trailerY = hitchY - vehicle.trailerWheelbase * Math.sin(trailerHeading);
+                        }
+
+                        // Calculate Envelopes
+                        const tractorCorners = this.getVehicleCorners(currRearX, currRearY, currHeading, vehicle.wheelbase + vehicle.overhangFront, -vehicle.overhangRear, vehicle.width);
+                        let trailerCorners = null;
+                        if (vehicle.hasTrailer) {
+                            trailerCorners = this.getVehicleCorners(trailerX, trailerY, trailerHeading, vehicle.trailerWheelbase, -vehicle.trailerOverhangRear, vehicle.trailerWidth);
+                        }
+
+                        states.push({
+                            x: currRearX,
+                            y: currRearY,
+                            heading: currHeading,
+                            steeringAngle: 0, // Not calculated in this model, but implied
+                            trailer: vehicle.hasTrailer ? {
+                                x: trailerX,
+                                y: trailerY,
+                                heading: trailerHeading
+                            } : null,
+                            envelope: {
+                                tractor: tractorCorners,
+                                trailer: trailerCorners
+                            }
+                        });
+                    }
+
+                } else {
+                    // --- Rear Axle Following (Original Logic) ---
+                    let currentPos = { x: path[0].x, y: path[0].y };
+                    let currentHeading = Math.atan2(path[1].y - path[0].y, path[1].x - path[0].x);
+
+                    // トレーラー初期状態（トラクターと一直線と仮定）
+                    let trailerHeading = currentHeading;
+                    // 連結点位置
+                    let hitchPos = {
+                        x: currentPos.x - vehicle.hitchOffset * Math.cos(currentHeading),
+                        y: currentPos.y - vehicle.hitchOffset * Math.sin(currentHeading)
+                    };
+                    // トレーラー車軸位置
+                    let trailerPos = {
+                        x: hitchPos.x - vehicle.trailerWheelbase * Math.cos(trailerHeading),
+                        y: hitchPos.y - vehicle.trailerWheelbase * Math.sin(trailerHeading)
+                    };
+
+                    let targetIndex = 1;
+
+                    const maxSteps = 10000;
+                    for (let i = 0; i < maxSteps; i++) {
+                        const distToEnd = Math.hypot(path[path.length - 1].x - currentPos.x, path[path.length - 1].y - currentPos.y);
+                        if (distToEnd < 0.5) break;
+
+                        // 1. Pure Pursuit Control
+                        // Determine lookahead point
+                        let lookaheadDist = vehicle.wheelbase * 1.5; // Tuning parameter
+                        if (lookaheadDist < 2.0) lookaheadDist = 2.0;
+
+                        let targetPoint = path[targetIndex];
+
                         // Rear Axle Following (Original Logic)
                         while (targetIndex < path.length - 1) {
                             const dist = Math.hypot(path[targetIndex].x - currentPos.x, path[targetIndex].y - currentPos.y);
@@ -985,91 +1037,72 @@
                         const alpha = Math.atan2(dy, dx) - currentHeading;
 
                         steeringAngle = Math.atan2(2 * vehicle.wheelbase * Math.sin(alpha), Math.hypot(dx, dy));
-                    }
 
-                    // Clamp steering
-                    if (steeringAngle > vehicle.maxSteeringAngle) steeringAngle = vehicle.maxSteeringAngle;
-                    if (steeringAngle < -vehicle.maxSteeringAngle) steeringAngle = -vehicle.maxSteeringAngle;
+                        // Clamp steering
+                        if (steeringAngle > vehicle.maxSteeringAngle) steeringAngle = vehicle.maxSteeringAngle;
+                        if (steeringAngle < -vehicle.maxSteeringAngle) steeringAngle = -vehicle.maxSteeringAngle;
 
-                    // 2. トラクター移動
-                    const dx = this.stepSize * Math.cos(currentHeading);
-                    const dy = this.stepSize * Math.sin(currentHeading);
-                    const dHeading = (this.stepSize / vehicle.wheelbase) * Math.tan(steeringAngle);
+                        // 2. トラクター移動
+                        const dxMove = this.stepSize * Math.cos(currentHeading);
+                        const dyMove = this.stepSize * Math.sin(currentHeading);
+                        const dHeading = (this.stepSize / vehicle.wheelbase) * Math.tan(steeringAngle);
 
-                    const nextPos = { x: currentPos.x + dx, y: currentPos.y + dy };
-                    const nextHeading = currentHeading + dHeading;
+                        const nextPos = { x: currentPos.x + dxMove, y: currentPos.y + dyMove };
+                        const nextHeading = currentHeading + dHeading;
 
-                    // 3. トレーラー移動
-                    let nextTrailerPos = { ...trailerPos };
-                    let nextTrailerHeading = trailerHeading;
+                        // 3. トレーラー移動
+                        let nextTrailerPos = { ...trailerPos };
+                        let nextTrailerHeading = trailerHeading;
 
-                    if (vehicle.hasTrailer) {
-                        // 新しい連結点位置
-                        const nextHitchPos = {
-                            x: nextPos.x - vehicle.hitchOffset * Math.cos(nextHeading),
-                            y: nextPos.y - vehicle.hitchOffset * Math.sin(nextHeading)
-                        };
+                        if (vehicle.hasTrailer) {
+                            // 新しい連結点位置
+                            const nextHitchPos = {
+                                x: nextPos.x - vehicle.hitchOffset * Math.cos(nextHeading),
+                                y: nextPos.y - vehicle.hitchOffset * Math.sin(nextHeading)
+                            };
 
-                        // トレーラーの移動
-                        const dxT = nextHitchPos.x - trailerPos.x;
-                        const dyT = nextHitchPos.y - trailerPos.y;
+                            // トレーラーの移動
+                            const dxT = nextHitchPos.x - trailerPos.x;
+                            const dyT = nextHitchPos.y - trailerPos.y;
 
-                        const desiredHeading = Math.atan2(dyT, dxT);
+                            const desiredHeading = Math.atan2(dyT, dxT);
 
-                        nextTrailerHeading = desiredHeading;
-                        nextTrailerPos = {
-                            x: nextHitchPos.x - vehicle.trailerWheelbase * Math.cos(nextTrailerHeading),
-                            y: nextHitchPos.y - vehicle.trailerWheelbase * Math.sin(nextTrailerHeading)
-                        };
-                    }
-
-                    // 4. 包絡線（Envelope）計算
-                    const trFront = vehicle.wheelbase + vehicle.overhangFront;
-                    const trRear = -vehicle.overhangRear;
-                    const trHalfW = vehicle.width / 2;
-
-                    const tractorCorners = {
-                        fl: this.transformPoint(trFront, trHalfW, currentPos.x, currentPos.y, currentHeading),
-                        fr: this.transformPoint(trFront, -trHalfW, currentPos.x, currentPos.y, currentHeading),
-                        rl: this.transformPoint(trRear, trHalfW, currentPos.x, currentPos.y, currentHeading),
-                        rr: this.transformPoint(trRear, -trHalfW, currentPos.x, currentPos.y, currentHeading)
-                    };
-
-                    let trailerCorners = null;
-                    if (vehicle.hasTrailer) {
-                        const tlFront = vehicle.trailerWheelbase; // 連結点から前方（便宜上）
-                        const tlRear = -vehicle.trailerOverhangRear;
-                        const tlHalfW = vehicle.trailerWidth / 2;
-
-                        trailerCorners = {
-                            fl: this.transformPoint(vehicle.trailerWheelbase, tlHalfW, trailerPos.x, trailerPos.y, trailerHeading),
-                            fr: this.transformPoint(vehicle.trailerWheelbase, -tlHalfW, trailerPos.x, trailerPos.y, trailerHeading),
-                            rl: this.transformPoint(tlRear, tlHalfW, trailerPos.x, trailerPos.y, trailerHeading),
-                            rr: this.transformPoint(tlRear, -tlHalfW, trailerPos.x, trailerPos.y, trailerHeading)
-                        };
-                    }
-
-                    // 更新
-                    currentPos = nextPos;
-                    currentHeading = nextHeading;
-                    trailerPos = nextTrailerPos;
-                    trailerHeading = nextTrailerHeading;
-
-                    states.push({
-                        x: currentPos.x,
-                        y: currentPos.y,
-                        heading: currentHeading,
-                        steeringAngle: steeringAngle,
-                        trailer: vehicle.hasTrailer ? {
-                            x: trailerPos.x,
-                            y: trailerPos.y,
-                            heading: trailerHeading
-                        } : null,
-                        envelope: {
-                            tractor: tractorCorners,
-                            trailer: trailerCorners
+                            nextTrailerHeading = desiredHeading;
+                            nextTrailerPos = {
+                                x: nextHitchPos.x - vehicle.trailerWheelbase * Math.cos(nextTrailerHeading),
+                                y: nextHitchPos.y - vehicle.trailerWheelbase * Math.sin(nextTrailerHeading)
+                            };
                         }
-                    });
+
+                        // 4. 包絡線（Envelope）計算
+                        const tractorCorners = this.getVehicleCorners(currentPos.x, currentPos.y, currentHeading, vehicle.wheelbase + vehicle.overhangFront, -vehicle.overhangRear, vehicle.width);
+                        let trailerCorners = null;
+                        if (vehicle.hasTrailer) {
+                            trailerCorners = this.getVehicleCorners(trailerPos.x, trailerPos.y, trailerHeading, vehicle.trailerWheelbase, -vehicle.trailerOverhangRear, vehicle.trailerWidth);
+                        }
+
+                        // 更新
+                        currentPos = nextPos;
+                        currentHeading = nextHeading;
+                        trailerPos = nextTrailerPos;
+                        trailerHeading = nextTrailerHeading;
+
+                        states.push({
+                            x: currentPos.x,
+                            y: currentPos.y,
+                            heading: currentHeading,
+                            steeringAngle: steeringAngle,
+                            trailer: vehicle.hasTrailer ? {
+                                x: trailerPos.x,
+                                y: trailerPos.y,
+                                heading: trailerHeading
+                            } : null,
+                            envelope: {
+                                tractor: tractorCorners,
+                                trailer: trailerCorners
+                            }
+                        });
+                    }
                 }
 
                 return states;

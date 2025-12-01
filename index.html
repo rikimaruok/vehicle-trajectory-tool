@@ -604,6 +604,13 @@
             </select>
         </div>
         <div class="control-group">
+            <label>起点 (Reference)</label>
+            <select id="referencePointInput">
+                <option value="rear">後輪車軸 (Rear)</option>
+                <option value="front">前輪車軸 (Front)</option>
+            </select>
+        </div>
+        <div class="control-group">
             <label>描画間隔 (m)</label>
             <input type="number" id="drawIntervalInput" value="5.0" step="0.5" min="0.5">
         </div>
@@ -875,13 +882,23 @@
                 };
             }
 
-            simulate(path, vehicle) {
+            simulate(path, vehicle, referencePoint = 'rear') {
                 if (!path || path.length < 2) return [];
 
                 const states = [];
 
                 let currentPos = { x: path[0].x, y: path[0].y };
                 let currentHeading = Math.atan2(path[1].y - path[0].y, path[1].x - path[0].x);
+
+                // Adjust start position if Reference is Front
+                if (referencePoint === 'front') {
+                    // path[0] is Front Axle Center.
+                    // We need to calculate Rear Axle Center (currentPos) based on heading.
+                    currentPos = {
+                        x: path[0].x - vehicle.wheelbase * Math.cos(currentHeading),
+                        y: path[0].y - vehicle.wheelbase * Math.sin(currentHeading)
+                    };
+                }
 
                 // トレーラー初期状態（トラクターと一直線と仮定）
                 let trailerHeading = currentHeading;
@@ -903,25 +920,76 @@
                     const distToEnd = Math.hypot(path[path.length - 1].x - currentPos.x, path[path.length - 1].y - currentPos.y);
                     if (distToEnd < 0.5) break;
 
-                    // 1. Pure Pursuit
-                    const targetPt = path[targetIndex];
-                    const distToTarget = Math.hypot(targetPt.x - currentPos.x, targetPt.y - currentPos.y);
+                    // 1. Pure Pursuit Control
+                    // Determine lookahead point
+                    let lookaheadDist = vehicle.wheelbase * 1.5; // Tuning parameter
+                    if (lookaheadDist < 2.0) lookaheadDist = 2.0;
 
-                    if (distToTarget < 1.0 && targetIndex < path.length - 1) {
-                        targetIndex++;
+                    let targetPoint = path[targetIndex];
+
+                    // If Reference is Front, we are following the path with the Front Axle.
+                    // The Pure Pursuit logic needs to be slightly different or we can adapt the target.
+                    // Standard Pure Pursuit:
+                    // Steering = atan(2 * L * sin(alpha) / ld)
+                    // where alpha is angle between vehicle heading and lookahead vector.
+                    // This steers the REAR axle to follow the path with lookahead.
+
+                    // For Front Axle Following:
+                    // We want the Front Axle to be on the path.
+                    // Simple approach:
+                    // 1. Calculate current Front Axle position.
+                    // 2. Find target point on path ahead of Front Axle.
+                    // 3. Steer towards that target.
+
+                    let steeringAngle = 0;
+
+                    if (referencePoint === 'front') {
+                        const frontPos = {
+                            x: currentPos.x + vehicle.wheelbase * Math.cos(currentHeading),
+                            y: currentPos.y + vehicle.wheelbase * Math.sin(currentHeading)
+                        };
+
+                        // Find target point relative to Front Axle
+                        while (targetIndex < path.length - 1) {
+                            const dist = Math.hypot(path[targetIndex].x - frontPos.x, path[targetIndex].y - frontPos.y);
+                            if (dist > lookaheadDist * 0.5) break; // Smaller lookahead for front following?
+                            targetIndex++;
+                        }
+                        targetPoint = path[targetIndex];
+
+                        const dx = targetPoint.x - frontPos.x;
+                        const dy = targetPoint.y - frontPos.y;
+                        const targetHeading = Math.atan2(dy, dx);
+
+                        // Steering is simply the difference between target heading and current heading
+                        // (This is a simplified "follow the rabbit" for the front wheel)
+                        let deltaHeading = targetHeading - currentHeading;
+
+                        // Normalize angle -PI to PI
+                        while (deltaHeading > Math.PI) deltaHeading -= 2 * Math.PI;
+                        while (deltaHeading < -Math.PI) deltaHeading += 2 * Math.PI;
+
+                        steeringAngle = deltaHeading;
+
+                    } else {
+                        // Rear Axle Following (Original Logic)
+                        while (targetIndex < path.length - 1) {
+                            const dist = Math.hypot(path[targetIndex].x - currentPos.x, path[targetIndex].y - currentPos.y);
+                            if (dist > lookaheadDist) break;
+                            targetIndex++;
+                        }
+                        targetPoint = path[targetIndex];
+
+                        const dx = targetPoint.x - currentPos.x;
+                        const dy = targetPoint.y - currentPos.y;
+                        const alpha = Math.atan2(dy, dx) - currentHeading;
+
+                        steeringAngle = Math.atan2(2 * vehicle.wheelbase * Math.sin(alpha), Math.hypot(dx, dy));
                     }
 
-                    const angleToTarget = Math.atan2(targetPt.y - currentPos.y, targetPt.x - currentPos.x);
-                    let alpha = angleToTarget - currentHeading;
-                    while (alpha > Math.PI) alpha -= 2 * Math.PI;
-                    while (alpha < -Math.PI) alpha += 2 * Math.PI;
-
-                    // maxSteeringAngle is already in radians in VehicleModel
-                    const maxSteerRad = vehicle.maxSteeringAngle;
-                    let steeringAngle = Math.atan(2 * vehicle.wheelbase * Math.sin(alpha) / distToTarget);
-
-                    if (steeringAngle > maxSteerRad) steeringAngle = maxSteerRad;
-                    if (steeringAngle < -maxSteerRad) steeringAngle = -maxSteerRad;
+                    // Clamp steering
+                    if (steeringAngle > vehicle.maxSteeringAngle) steeringAngle = vehicle.maxSteeringAngle;
+                    if (steeringAngle < -vehicle.maxSteeringAngle) steeringAngle = -vehicle.maxSteeringAngle;
 
                     // 2. トラクター移動
                     const dx = this.stepSize * Math.cos(currentHeading);
@@ -1391,6 +1459,7 @@
 
                 // Controls
                 vehiclePreset: document.getElementById('vehiclePreset'),
+                referencePointInput: document.getElementById('referencePointInput'),
                 drawIntervalInput: document.getElementById('drawIntervalInput'),
                 openSettingsBtn: document.getElementById('openSettingsBtn'),
                 bgFileInput: document.getElementById('bgFileInput'),
@@ -2304,6 +2373,7 @@
                 }
             });
 
+            inputs.referencePointInput.addEventListener('change', update);
             inputs.drawIntervalInput.addEventListener('change', update);
             inputs.drawIntervalInput.addEventListener('input', update);
 
@@ -2535,11 +2605,12 @@
                 // 0. Draw Completed Paths
                 const intervalMeters = parseFloat(inputs.drawIntervalInput.value) || 5.0;
                 const step = Math.max(1, Math.round(intervalMeters / engine.stepSize));
+                const referencePoint = inputs.referencePointInput.value;
 
                 paths.forEach(p => {
                     renderer.drawPath(p, null);
                     if (p.length > 1) {
-                        const states = engine.simulate(p, vehicle);
+                        const states = engine.simulate(p, vehicle, referencePoint);
                         renderer.drawSimulation(states, vehicle, step);
                     }
                 });
@@ -2560,7 +2631,8 @@
                 }
 
                 if (simPath.length > 1) {
-                    const states = engine.simulate(simPath, vehicle);
+                    const referencePoint = inputs.referencePointInput.value;
+                    const states = engine.simulate(simPath, vehicle, referencePoint);
                     renderer.drawSimulation(states, vehicle, step);
                 }
             }

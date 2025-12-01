@@ -1210,7 +1210,7 @@
                 }
             }
 
-            drawSimulation(states, vehicle) {
+            drawSimulation(states, vehicle, step = 50) {
                 if (!states || states.length === 0) return;
 
                 // 0. Swept Path (包絡線) - 青い破線
@@ -1260,8 +1260,6 @@
                 }
 
                 // 3. 車両描画
-                const intervalMeters = parseFloat(inputs.drawIntervalInput.value) || 5.0;
-                const step = Math.max(1, Math.round(intervalMeters / engine.stepSize));
                 for (let i = 0; i < states.length; i += step) {
                     this.drawVehicleBody(states[i], vehicle, i === states.length - 1);
                 }
@@ -2532,11 +2530,14 @@
                 renderer.clear();
 
                 // 0. Draw Completed Paths
+                const intervalMeters = parseFloat(inputs.drawIntervalInput.value) || 5.0;
+                const step = Math.max(1, Math.round(intervalMeters / engine.stepSize));
+
                 paths.forEach(p => {
                     renderer.drawPath(p, null);
                     if (p.length > 1) {
                         const states = engine.simulate(p, vehicle);
-                        renderer.drawSimulation(states, vehicle);
+                        renderer.drawSimulation(states, vehicle, step);
                     }
                 });
 
@@ -2557,7 +2558,7 @@
 
                 if (simPath.length > 1) {
                     const states = engine.simulate(simPath, vehicle);
-                    renderer.drawSimulation(states, vehicle);
+                    renderer.drawSimulation(states, vehicle, step);
                 }
             }
 

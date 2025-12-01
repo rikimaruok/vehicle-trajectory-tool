@@ -597,11 +597,18 @@
             </button>
         </div>
         <div class="control-group">
-            <label>車両設定</label>
+            <label>車両プリセット</label>
             <select id="vehiclePreset">
-                <option value="custom">カスタム</option>
-                <!-- Options will be populated by JS -->
+                <option value="2t_truck">2tトラック</option>
+                <option value="4t_truck">4tトラック</option>
+                <option value="10t_truck">10tトラック</option>
+                <option value="semi_trailer">セミトレーラ</option>
+                <option value="pole_trailer">ポールトレーラ</option>
             </select>
+        </div>
+        <div class="control-group" id="poleLengthGroup" style="display: none;">
+            <label>ポール長 (m): <span id="poleLengthVal">10.0</span></label>
+            <input type="range" id="poleLengthInput" min="5" max="20" step="0.5" value="10.0">
         </div>
         <div class="control-group">
             <label>描画間隔 (m)</label>
@@ -747,6 +754,11 @@
                                 <td><input type="number" id="m_trailerAxles" step="1" min="1" value="2"></td>
                                 <td class="unit">軸</td>
                             </tr>
+                            <tr>
+                                <td>ポールトレーラ</td>
+                                <td><input type="checkbox" id="m_isPoleTrailer"></td>
+                                <td></td>
+                            </tr>
                         </table>
                     </div>
                 </div>
@@ -819,23 +831,42 @@
                 }
             },
             {
-                id: 'semitrailer',
-                name: 'セミトレーラー',
+                id: 'semi_trailer',
+                name: 'セミトレーラ',
                 type: 'trailer',
                 params: {
-                    wheelbase: 3.5, // トラクター
+                    wheelbase: 4.5,
                     width: 2.5,
                     overhangFront: 1.3,
-                    overhangRear: 1.0, // トラクター後部
+                    overhangRear: 1.5,
                     maxSteeringAngle: 45,
                     tractorAxles: 2,
-                    // トレーラー部分
-                    trailerWheelbase: 8.5, // キングピンから車軸群中心
                     trailerWidth: 2.5,
-                    trailerOverhangRear: 2.5,
-                    trailerOverhangFront: 0.0,
-                    hitchOffset: 0.0, // 後車軸上の場合
+                    trailerWheelbase: 8.5,
+                    trailerOverhangFront: 0,
+                    trailerOverhangRear: 2.0,
+                    hitchOffset: 0,
                     trailerAxles: 3
+                }
+            },
+            {
+                id: 'pole_trailer',
+                name: 'ポールトレーラ',
+                type: 'trailer',
+                params: {
+                    wheelbase: 5.5, // 10t truck tractor
+                    width: 2.5,
+                    overhangFront: 1.5,
+                    overhangRear: 2.8,
+                    maxSteeringAngle: 45,
+                    tractorAxles: 2,
+                    trailerWidth: 2.3,
+                    trailerWheelbase: 10.0, // Default pole length
+                    trailerOverhangFront: 0,
+                    trailerOverhangRear: 1.0,
+                    hitchOffset: -1.0, // Hitch is usually slightly forward or at axle
+                    trailerAxles: 1,
+                    isPoleTrailer: true
                 }
             }
         ];
@@ -860,6 +891,7 @@
                 this.trailerOverhangFront = 0;
                 this.hitchOffset = 0; // トラクター後車軸からの連結点オフセット（正：後ろ、負：前）
                 this.trailerAxles = 2;
+                this.isPoleTrailer = false;
             }
         }
 
@@ -1317,26 +1349,54 @@
                     this.ctx.translate(tScreenPos.x, tScreenPos.y);
                     this.ctx.rotate(th);
 
-                    const tLenFront = vehicle.trailerWheelbase;
-                    const tLenRear = vehicle.trailerOverhangRear;
-                    const tHalfWidth = vehicle.trailerWidth / 2;
+                    // Scale coordinates for drawing
+                    this.ctx.scale(s, s);
+                    this.ctx.lineWidth = 1 / s; // Adjust line width to remain constant visually
 
-                    this.ctx.fillStyle = isLast ? 'rgba(40, 167, 69, 0.5)' : 'rgba(40, 167, 69, 0.1)';
-                    this.ctx.strokeStyle = isLast ? '#1e7e34' : 'rgba(40, 167, 69, 0.3)';
+                    if (vehicle.isPoleTrailer) {
+                        // Pole Trailer Rendering
+                        // Draw Pole (from hitch to trailer axle)
+                        // Since we are at trailer axle (0,0), hitch is at distance 'trailerWheelbase' in front
+                        const poleLen = vehicle.trailerWheelbase;
 
-                    // 車体
-                    this.ctx.beginPath();
-                    this.ctx.rect(-tLenRear * s, -tHalfWidth * s, (tLenFront + tLenRear) * s, vehicle.trailerWidth * s);
-                    this.ctx.fill();
-                    this.ctx.stroke();
+                        this.ctx.fillStyle = '#94a3b8'; // Slate 400 (Pole color)
+                        this.ctx.fillRect(0, -0.15, poleLen, 0.3); // Pole thickness 0.3m
 
-                    // 車軸
-                    this.ctx.beginPath();
-                    this.ctx.strokeStyle = 'black';
-                    this.ctx.moveTo(0, -tHalfWidth * s);
-                    this.ctx.lineTo(0, tHalfWidth * s);
+                        // Draw Rear Bogie (Axles)
+                        const bogieLen = vehicle.trailerOverhangRear + 0.5; // Small front overhang for bogie
+                        const bogieWidth = vehicle.trailerWidth;
 
-                    this.ctx.stroke();
+                        this.ctx.fillStyle = isLast ? 'rgba(40, 167, 69, 0.5)' : 'rgba(40, 167, 69, 0.1)'; // Greenish for trailer
+                        this.ctx.fillRect(-vehicle.trailerOverhangRear, -bogieWidth / 2, bogieLen, bogieWidth);
+                        this.ctx.strokeStyle = isLast ? '#1e7e34' : 'rgba(40, 167, 69, 0.3)';
+                        this.ctx.strokeRect(-vehicle.trailerOverhangRear, -bogieWidth / 2, bogieLen, bogieWidth);
+
+                        // Draw Wheels
+                        this.ctx.fillStyle = '#000';
+                        drawAxleGroup(this.ctx, 0, bogieWidth, vehicle.trailerAxles || 1, 0.8, 0.25);
+
+                    } else {
+                        // Standard Trailer Rendering
+                        const tLenFront = vehicle.trailerWheelbase;
+                        const tLenRear = vehicle.trailerOverhangRear;
+                        const tHalfWidth = vehicle.trailerWidth / 2;
+
+                        this.ctx.fillStyle = isLast ? 'rgba(40, 167, 69, 0.5)' : 'rgba(40, 167, 69, 0.1)'; // Greenish for trailer
+                        this.ctx.strokeStyle = isLast ? '#1e7e34' : 'rgba(40, 167, 69, 0.3)';
+
+                        // 車体
+                        this.ctx.beginPath();
+                        this.ctx.rect(-tLenRear, -tHalfWidth, (tLenFront + tLenRear), vehicle.trailerWidth);
+                        this.ctx.fill();
+                        this.ctx.stroke();
+
+                        // 車軸
+                        this.ctx.beginPath();
+                        this.ctx.strokeStyle = 'black';
+                        this.ctx.moveTo(0, -tHalfWidth);
+                        this.ctx.lineTo(0, tHalfWidth);
+                        this.ctx.stroke();
+                    }
 
                     this.ctx.restore();
                 }
@@ -1381,6 +1441,9 @@
 
                 // Controls
                 vehiclePreset: document.getElementById('vehiclePreset'),
+                poleLengthGroup: document.getElementById('poleLengthGroup'),
+                poleLengthInput: document.getElementById('poleLengthInput'),
+                poleLengthVal: document.getElementById('poleLengthVal'),
                 drawIntervalInput: document.getElementById('drawIntervalInput'),
                 openSettingsBtn: document.getElementById('openSettingsBtn'),
                 bgFileInput: document.getElementById('bgFileInput'),
@@ -1410,6 +1473,7 @@
                 m_hitchOffset: document.getElementById('m_hitchOffset'),
                 m_trailerAxles: document.getElementById('m_trailerAxles'),
                 m_trailerParams: document.getElementById('m_trailerParams'),
+                m_isPoleTrailer: document.getElementById('m_isPoleTrailer'),
 
                 modalPreset: document.getElementById('modalPreset'),
 
@@ -1739,6 +1803,7 @@
                 inputs.m_trailerOverhangRear.value = vehicle.trailerOverhangRear;
                 inputs.m_hitchOffset.value = vehicle.hitchOffset;
                 inputs.m_trailerAxles.value = vehicle.trailerAxles || 2;
+                inputs.m_isPoleTrailer.checked = vehicle.isPoleTrailer;
 
                 // toggleModalTrailer is defined below
                 if (typeof toggleModalTrailer === 'function') {
@@ -1811,6 +1876,9 @@
                     inputs.m_trailerOverhangRear.value = p.trailerOverhangRear;
                     inputs.m_hitchOffset.value = p.hitchOffset || 0;
                     inputs.m_trailerAxles.value = p.trailerAxles || 2;
+                    inputs.m_isPoleTrailer.checked = !!p.isPoleTrailer;
+                } else {
+                    inputs.m_isPoleTrailer.checked = false;
                 }
                 toggleModalTrailer();
                 drawPreview();
@@ -1832,6 +1900,7 @@
                 vehicle.trailerOverhangRear = parseFloat(inputs.m_trailerOverhangRear.value);
                 vehicle.hitchOffset = parseFloat(inputs.m_hitchOffset.value);
                 vehicle.trailerAxles = parseInt(inputs.m_trailerAxles.value);
+                vehicle.isPoleTrailer = inputs.m_isPoleTrailer.checked;
 
                 inputs.settingsModal.style.display = 'none';
                 update();
@@ -1843,8 +1912,23 @@
             });
 
             inputs.m_hasTrailer.addEventListener('change', toggleModalTrailer);
+            inputs.m_isPoleTrailer.addEventListener('change', toggleModalTrailer);
             function toggleModalTrailer() {
                 inputs.m_trailerParams.style.display = inputs.m_hasTrailer.checked ? 'block' : 'none';
+                // Pole trailer specific inputs
+                if (inputs.m_hasTrailer.checked && inputs.m_isPoleTrailer.checked) {
+                    // Hide trailer overhang front/rear, width, hitch offset for pole trailer
+                    // For simplicity, just hide the whole group for now if it's a pole trailer
+                    // Or, more granular control:
+                    // inputs.m_trailerOverhangFront.closest('.form-group').style.display = 'none';
+                    // inputs.m_trailerOverhangRear.closest('.form-group').style.display = 'none';
+                    // inputs.m_trailerWidth.closest('.form-group').style.display = 'none';
+                    // inputs.m_hitchOffset.closest('.form-group').style.display = 'none';
+                    // inputs.m_trailerAxles.closest('.form-group').style.display = 'block'; // Still need axles
+                    // inputs.m_trailerWheelbase.closest('.form-group').style.display = 'block'; // This is the pole length
+                } else if (inputs.m_hasTrailer.checked && !inputs.m_isPoleTrailer.checked) {
+                    // Show all standard trailer inputs
+                }
                 drawPreview();
             }
 
@@ -1856,9 +1940,9 @@
             const allInputs = [
                 inputs.m_width, inputs.m_wheelbase, inputs.m_overhangFront, inputs.m_overhangRear,
                 inputs.m_maxSteering, inputs.m_tractorAxles,
-                inputs.m_hasTrailer, inputs.m_trailerWidth, inputs.m_trailerWheelbase,
+                inputs.m_hasTrailer, inputs.m_trailerWheelbase, inputs.m_trailerWidth,
                 inputs.m_trailerOverhangFront, inputs.m_trailerOverhangRear, inputs.m_hitchOffset,
-                inputs.m_trailerAxles
+                inputs.m_trailerAxles, inputs.m_isPoleTrailer
             ];
             allInputs.forEach(input => {
                 if (input) {
@@ -1895,6 +1979,8 @@
                 let totalWidth = width;
 
                 let tWb = 0, tOhR = 0, tOhF = 0, hitch = 0, tWidth = 0, tAxles = 1;
+                const isPoleTrailer = inputs.m_isPoleTrailer.checked;
+
                 if (inputs.m_hasTrailer.checked) {
                     tWb = parseFloat(inputs.m_trailerWheelbase.value) || 0;
                     tOhR = parseFloat(inputs.m_trailerOverhangRear.value) || 0;
@@ -1903,10 +1989,25 @@
                     tWidth = parseFloat(inputs.m_trailerWidth.value) || 0;
                     tAxles = parseInt(inputs.m_trailerAxles.value) || 1;
 
-                    const maxFront = Math.max(wb + ohF, hitch + tOhF);
-                    const minRear = Math.min(-ohR, hitch - tWb - tOhR);
-                    totalLen = maxFront - minRear;
-                    totalWidth = Math.max(totalWidth, tWidth);
+                    if (isPoleTrailer) {
+                        // For pole trailer, hitch is at tractor rear axle, trailer axle is at tWb
+                        // So, tractor rear axle is 0. Hitch is at -hitch. Trailer axle is at -hitch - tWb.
+                        // Trailer rear overhang is from trailer axle.
+                        const tractorRearAxleX = 0;
+                        const hitchPointX = tractorRearAxleX - hitch;
+                        const trailerAxleX = hitchPointX - tWb;
+                        const trailerRearMostX = trailerAxleX - tOhR;
+
+                        const maxFront = wb + ohF;
+                        const minRear = trailerRearMostX;
+                        totalLen = maxFront - minRear;
+                        totalWidth = Math.max(totalWidth, tWidth); // Trailer width is for bogie
+                    } else {
+                        const maxFront = Math.max(wb + ohF, hitch + tOhF);
+                        const minRear = Math.min(-ohR, hitch - tWb - tOhR);
+                        totalLen = maxFront - minRear;
+                        totalWidth = Math.max(totalWidth, tWidth);
+                    }
                 }
 
                 // Add margins
@@ -1927,8 +2028,16 @@
                 let minX = -ohR;
                 let maxX = wb + ohF;
                 if (inputs.m_hasTrailer.checked) {
-                    minX = Math.min(minX, hitch - tWb - tOhR);
-                    maxX = Math.max(maxX, hitch + tOhF);
+                    if (isPoleTrailer) {
+                        const tractorRearAxleX = 0;
+                        const hitchPointX = tractorRearAxleX - hitch;
+                        const trailerAxleX = hitchPointX - tWb;
+                        const trailerRearMostX = trailerAxleX - tOhR;
+                        minX = Math.min(minX, trailerRearMostX);
+                    } else {
+                        minX = Math.min(minX, hitch - tWb - tOhR);
+                        maxX = Math.max(maxX, hitch + tOhF);
+                    }
                 }
                 const midX = (minX + maxX) / 2;
 
@@ -1939,7 +2048,11 @@
                 pCtx.translate(-midX, 0); // Center horizontally
                 pCtx.lineWidth = 2 / actualScaleTop;
 
-                drawVehicleTop(pCtx, wb, ohF, ohR, width, trAxles, tWb, tOhR, tOhF, hitch, tWidth, tAxles, actualScaleTop);
+                drawVehicleTop(pCtx,
+                    wb, ohF, ohR, width, trAxles,
+                    tWb, tOhR, tOhF, hitch, tWidth, tAxles,
+                    isPoleTrailer
+                );
                 pCtx.restore();
 
                 // --- Draw Side View ---
@@ -1949,11 +2062,15 @@
                 pCtx.translate(-midX, 0);
                 pCtx.lineWidth = 2 / actualScaleSide;
 
-                drawVehicleSide(pCtx, wb, ohF, ohR, width, trAxles, tWb, tOhR, tOhF, hitch, tWidth, tAxles, actualScaleSide);
+                drawVehicleSide(pCtx,
+                    wb, ohF, ohR, width, trAxles,
+                    tWb, tOhR, tOhF, hitch, tWidth, tAxles,
+                    isPoleTrailer
+                );
                 pCtx.restore();
             }
 
-            function drawVehicleTop(ctx, wb, ohF, ohR, width, trAxles, tWb, tOhR, tOhF, hitch, tWidth, tAxles, scale) {
+            function drawVehicleTop(ctx, wb, ohF, ohR, width, trAxles, tWb, tOhR, tOhF, hitch, tWidth, tAxles, isPoleTrailer) {
                 // Static Schematic Logic: Fixed visual proportions
                 // These values are purely for drawing the "ideal" shape
                 const vWb = 3.5;
@@ -1969,72 +2086,58 @@
 
                 // Tractor Wheels (Visual)
                 ctx.fillStyle = '#000'; // Black tires
-                const wheelW = 0.25;
-                const wheelL = 0.7;
-
-                // Front Axle (Visual)
-                ctx.fillRect(vWb - wheelL / 2, vWidth / 2 - wheelW, wheelL, wheelW);
-                ctx.fillRect(vWb - wheelL / 2, -vWidth / 2, wheelL, wheelW);
-
-                // Rear Axles (Visual - Centered on 0)
-                // For static view, just draw 2 axles for simplicity or based on count
-                const axleSpacing = 1.2;
-                const axleCount = trAxles || 2; // Use actual tractor axles count
-                for (let i = 0; i < axleCount; i++) {
-                    const ax = 0 - (i * axleSpacing - (axleCount - 1) * axleSpacing / 2);
-                    ctx.fillRect(ax - wheelL / 2, vWidth / 2 - wheelW, wheelL, wheelW);
-                    ctx.fillRect(ax - wheelL / 2, -vWidth / 2, wheelL, wheelW);
-                }
-
-                // Dimensions (Real Values, Visual Coords)
-                const dimOffset = 2.0; // Increased from 1.8
-                drawDim(ctx, 0, -vWidth / 2, vWb, -vWidth / 2, wb.toFixed(2), -dimOffset); // Wheelbase (Top)
-                drawDim(ctx, vWb, -vWidth / 2, vWb + vOhF, -vWidth / 2, ohF.toFixed(2), -dimOffset); // Front OH (Top)
-                drawDim(ctx, -vOhR, -vWidth / 2, 0, -vWidth / 2, ohR.toFixed(2), -dimOffset); // Rear OH (Top)
-                drawDim(ctx, vWb + vOhF, vWidth / 2, vWb + vOhF, -vWidth / 2, width.toFixed(2), dimOffset); // Width (Right)
+                drawAxleGroup(ctx, vWb, vWidth, 1, 0.8, 0.25); // Front
+                drawAxleGroup(ctx, 0, vWidth, trAxles, 0.8, 0.25); // Rear
 
                 // Trailer
-                if (inputs.m_hasTrailer.checked) {
-                    const vTWb = 5.0; // Fixed long trailer WB (Reduced from 6.0)
-                    const vTOhR = 1.5; // Reduced from 2.0
-                    const vTOhF = 1.0; // Keep this relative or fixed? Let's use fixed small value
-                    const vTWidth = 2.5;
+                if (tWb > 0) {
+                    const vHitchX = -hitch; // Relative to tractor rear axle (0)
+                    const vTrailerWb = isPoleTrailer ? 6.0 : 5.0; // Visual length for trailer WB
+                    const vTrailerOhR = 1.5;
+                    const vTrailerOhF = isPoleTrailer ? 0 : 0.5;
+                    const vTrailerWidth = isPoleTrailer ? 2.3 : 2.5;
 
-                    const vHitchX = 0.4; // Fixed visual offset for hitch to show dimension
+                    const vAxleX = vHitchX - vTrailerWb;
+                    const vRearX = vAxleX - vTrailerOhR;
+                    const vFrontX = vAxleX + vTrailerOhF; // For standard trailer, front is relative to axle
 
-                    const vAxleX = vHitchX - vTWb;
-                    const vFrontX = vHitchX + vTOhF; // Fixed front overhang visual
-                    const vRearX = vAxleX - vTOhR;
+                    ctx.save();
+                    // Draw Trailer Body
+                    if (isPoleTrailer) {
+                        // Pole
+                        ctx.fillStyle = '#94a3b8';
+                        ctx.fillRect(vAxleX, -0.2, vTrailerWb, 0.4); // Pole
 
-                    // Body (Visual)
-                    ctx.fillStyle = '#eef2ff'; // Light fill
-                    ctx.fillRect(vRearX, -vTWidth / 2, vFrontX - vRearX, vTWidth);
-                    ctx.strokeStyle = '#555';
-                    ctx.strokeRect(vRearX, -vTWidth / 2, vFrontX - vRearX, vTWidth);
-
-                    // Hitch (Visual)
-                    ctx.fillStyle = 'red';
-                    ctx.beginPath(); ctx.arc(vHitchX, 0, 0.15, 0, Math.PI * 2); ctx.fill();
-
-                    // Trailer Axles (Visual)
-                    ctx.fillStyle = '#000'; // Black tires
-                    const tAxleCount = tAxles || 3; // Use actual trailer axles count
-                    for (let i = 0; i < tAxleCount; i++) {
-                        const ax = vAxleX - (i * axleSpacing - (tAxleCount - 1) * axleSpacing / 2);
-                        ctx.fillRect(ax - wheelL / 2, vTWidth / 2 - wheelW, wheelL, wheelW);
-                        ctx.fillRect(ax - wheelL / 2, -vTWidth / 2, wheelL, wheelW);
+                        // Rear Bogie
+                        ctx.fillStyle = '#cbd5e1';
+                        ctx.fillRect(vRearX, -vTrailerWidth / 2, vTrailerOhR + 0.5, vTrailerWidth);
+                        ctx.strokeStyle = '#333';
+                        ctx.strokeRect(vRearX, -vTrailerWidth / 2, vTrailerOhR + 0.5, vTrailerWidth);
+                    } else {
+                        ctx.fillStyle = '#fff1f2'; // Light red
+                        ctx.fillRect(vRearX, -vTrailerWidth / 2, vFrontX - vRearX, vTrailerWidth);
+                        ctx.strokeStyle = '#333';
+                        ctx.strokeRect(vRearX, -vTrailerWidth / 2, vFrontX - vRearX, vTrailerWidth);
                     }
 
-                    // Dimensions (Real Values, Visual Coords)
-                    const tDimOffset = 2.0; // Increased from 1.8
-                    // drawDim(ctx, 0, vTWidth / 2, vHitchX, vTWidth / 2, hitch.toFixed(2), tDimOffset); // Hitch Point Offset REMOVED from Top View
-                    drawDim(ctx, vAxleX, vTWidth / 2, vHitchX, vTWidth / 2, tWb.toFixed(2), tDimOffset); // Trailer WB (Bottom)
-                    drawDim(ctx, vHitchX, vTWidth / 2, vFrontX, vTWidth / 2, tOhF.toFixed(2), tDimOffset); // Trailer Front OH (Bottom)
-                    drawDim(ctx, vRearX, vTWidth / 2, vAxleX, vTWidth / 2, tOhR.toFixed(2), tDimOffset); // Trailer Rear OH (Bottom)
-                    drawDim(ctx, vRearX, vTWidth / 2, vRearX, -vTWidth / 2, tWidth.toFixed(2), -tDimOffset); // Trailer Width (Left)
+                    // Trailer Wheels
+                    ctx.fillStyle = '#000';
+                    drawAxleGroup(ctx, vAxleX, vTrailerWidth, tAxles, 0.8, 0.25);
+                    ctx.restore();
 
-                    // Total Length Dimension
-                    const totalLen = (wb + ohF) - Math.min(-ohR, hitch - tWb - tOhR);
+                    // Dimensions (Top View)
+                    const dimOffsetW = 2.0;
+                    drawDim(ctx, vWb + vOhF, vWidth / 2, vWb + vOhF, -vWidth / 2, width.toFixed(2), dimOffsetW); // Tractor Width
+
+                    if (isPoleTrailer) {
+                        // Pole Length Dimension
+                        drawDim(ctx, vHitchX, -0.5, vAxleX, -0.5, tWb.toFixed(2), 1.0);
+                    } else {
+                        drawDim(ctx, vRearX, vTrailerWidth / 2, vRearX, -vTrailerWidth / 2, tWidth.toFixed(2), dimOffsetW); // Trailer Width
+                    }
+
+                    // Total Length Calculation
+                    const totalLen = (wb + ohF - hitch) + tWb + tOhR;
 
                     // Visual Coords for Total Length
                     const vFrontMost = vWb + vOhF;
@@ -2051,7 +2154,7 @@
                 }
             }
 
-            function drawVehicleSide(ctx, wb, ohF, ohR, width, trAxles, tWb, tOhR, tOhF, hitch, tWidth, tAxles, scale) {
+            function drawVehicleSide(ctx, wb, ohF, ohR, width, trAxles, tWb, tOhR, tOhF, hitch, tWidth, tAxles, isPoleTrailer) {
                 // Static Schematic Logic
                 const vWb = 3.5;
                 const vOhF = 1.0;
@@ -2072,70 +2175,69 @@
                 ctx.strokeRect(vWb - 0.5, chassisH, vOhF + 0.5, cabH - chassisH);
 
                 // Wheels
-                ctx.fillStyle = '#000'; // Black tires
-                // Front
-                ctx.beginPath(); ctx.arc(vWb, wheelR, wheelR, 0, Math.PI * 2); ctx.fill();
-                // Rear
-                const axleSpacing = 1.2;
-                const axleCount = trAxles || 2; // Use actual tractor axles count
-                for (let i = 0; i < axleCount; i++) {
-                    const ax = 0 - (i * axleSpacing - (axleCount - 1) * axleSpacing / 2);
-                    ctx.beginPath(); ctx.arc(ax, wheelR, wheelR, 0, Math.PI * 2); ctx.fill();
-                }
+                ctx.fillStyle = '#000';
+                drawAxleGroupSide(ctx, vWb, 1, wheelR);
+                drawAxleGroupSide(ctx, 0, trAxles, wheelR);
 
                 // Trailer
-                if (inputs.m_hasTrailer.checked) {
-                    const vTWb = 5.0; // Reduced from 6.0
-                    const vTOhR = 1.5; // Reduced from 2.0
-                    const vTOhF = 1.0;
+                if (tWb > 0) {
+                    const vHitchX = -hitch;
+                    const vTrailerWb = isPoleTrailer ? 6.0 : 5.0;
+                    const vTrailerOhR = 1.5;
+                    const vTrailerOhF = isPoleTrailer ? 0 : 0.5;
+                    const vTrailerH = 2.8;
+                    const vBedH = 1.2;
 
-                    const vHitchX = 0.4;
-                    const vAxleX = vHitchX - vTWb;
-                    const vFrontX = vHitchX + vTOhF;
-                    const vRearX = vAxleX - vTOhR;
-                    const bedH = 1.3;
+                    const vAxleX = vHitchX - vTrailerWb;
+                    const vRearX = vAxleX - vTrailerOhR;
+                    const vFrontX = vAxleX + vTrailerOhF;
 
-                    ctx.strokeStyle = '#555';
-                    ctx.fillStyle = '#eef2ff';
-                    // Bed
-                    ctx.beginPath();
-                    ctx.moveTo(vRearX, bedH);
-                    ctx.lineTo(vFrontX, bedH);
-                    ctx.lineTo(vHitchX, 1.1); // Hitch point
-                    ctx.lineTo(vRearX, 1.1); // Close shape roughly for fill
-                    ctx.closePath();
-                    ctx.fill();
+                    // Draw Trailer Body
+                    if (isPoleTrailer) {
+                        // Pole
+                        ctx.fillStyle = '#94a3b8';
+                        ctx.fillRect(vAxleX, 0.8, vTrailerWb, 0.2); // Pole
 
-                    // Redraw stroke correctly
-                    ctx.beginPath();
-                    ctx.moveTo(vRearX, bedH);
-                    ctx.lineTo(vFrontX, bedH);
-                    ctx.lineTo(vHitchX, 1.1); // Hitch point
-                    ctx.stroke();
-
-                    // Axles
-                    ctx.fillStyle = '#000'; // Black tires
-                    const tAxleCount = tAxles || 3; // Use actual trailer axles count
-                    for (let i = 0; i < tAxleCount; i++) {
-                        const ax = vAxleX - (i * axleSpacing - (tAxleCount - 1) * axleSpacing / 2);
-                        ctx.beginPath(); ctx.arc(ax, wheelR, wheelR, 0, Math.PI * 2); ctx.fill();
+                        // Rear Bogie
+                        ctx.fillStyle = '#cbd5e1';
+                        ctx.fillRect(vRearX, 0.6, vTrailerOhR + 0.5, 0.6);
+                        ctx.strokeStyle = '#333';
+                        ctx.strokeRect(vRearX, 0.6, vTrailerOhR + 0.5, 0.6);
+                    } else {
+                        ctx.fillStyle = '#fff1f2';
+                        ctx.fillRect(vRearX, vBedH, vFrontX - vRearX, vTrailerH - vBedH);
+                        ctx.strokeStyle = '#333';
+                        ctx.strokeRect(vRearX, vBedH, vFrontX - vRearX, vTrailerH - vBedH);
                     }
 
-                    // Side View Dimensions (Lengths only as requested)
-                    // Staggered dimensions to avoid overlap
-                    const dimOffsetWB = 1.2; // Increased from 1.0
-                    const dimOffsetOH = 2.8; // Increased from 2.5
+                    // Trailer Wheels
+                    ctx.fillStyle = '#000';
+                    drawAxleGroupSide(ctx, vAxleX, tAxles, wheelR);
 
-                    // Tractor
+                    // Dimensions (Side View)
+                    const dimOffsetWB = 1.2;
+                    const dimOffsetOH = 2.8;
+
                     drawDim(ctx, 0, 0, vWb, 0, wb.toFixed(2), -dimOffsetWB); // WB
                     drawDim(ctx, vWb, 0, vWb + vOhF, 0, ohF.toFixed(2), -dimOffsetOH); // Front OH
                     drawDim(ctx, -vOhR, 0, 0, 0, ohR.toFixed(2), -dimOffsetOH); // Rear OH
 
-                    // Trailer
-                    drawDim(ctx, 0, 0, vHitchX, 0, hitch.toFixed(2), 3.5); // Hitch Point Offset (Top of vehicle, positive offset)
+                    // Trailer Dims
                     drawDim(ctx, vAxleX, 0, vHitchX, 0, tWb.toFixed(2), -dimOffsetWB); // Trailer WB
-                    drawDim(ctx, vHitchX, 0, vFrontX, 0, tOhF.toFixed(2), -dimOffsetOH); // Trailer Front OH
+
+                    if (!isPoleTrailer) {
+                        drawDim(ctx, vHitchX, 0, vFrontX, 0, tOhF.toFixed(2), -dimOffsetOH); // Trailer Front OH
+                    }
                     drawDim(ctx, vRearX, 0, vAxleX, 0, tOhR.toFixed(2), -dimOffsetOH); // Trailer Rear OH
+
+                    // Hitch Offset (Top of vehicle)
+                    // Draw from Rear Axle (0) to Hitch (vHitchX)
+                    // If hitch is negative (forward), vHitchX is positive.
+                    // Wait, vHitchX = -hitch. If hitch is -1 (forward), vHitchX = 1.
+                    // Draw dim from 0 to vHitchX.
+                    const hitchDimY = 3.5; // Above cab
+                    drawDim(ctx, 0, hitchDimY, vHitchX, hitchDimY, `連結オフセット ${Math.abs(hitch).toFixed(2)}`, 0.5);
+
                 } else {
                     // Side View Dimensions (Tractor Only)
                     const dimOffsetWB = 1.2;
@@ -2261,37 +2363,40 @@
 
 
             // Sidebar Preset Logic
-            vehiclePresets.forEach(preset => {
-                const option = document.createElement('option');
-                option.value = preset.id;
-                option.textContent = preset.name;
-                inputs.vehiclePreset.appendChild(option);
-            });
+            // The HTML now directly contains the options, so this loop is no longer needed for the sidebar.
+            // vehiclePresets.forEach(preset => {
+            //     const option = document.createElement('option');
+            //     option.value = preset.id;
+            //     option.textContent = preset.name;
+            //     inputs.vehiclePreset.appendChild(option);
+            // });
 
             inputs.vehiclePreset.addEventListener('change', (e) => {
                 const selectedId = e.target.value;
-                if (selectedId === 'custom') return;
-                const preset = vehiclePresets.find(p => p.id === selectedId);
-                if (preset) {
-                    // Update model directly
-                    vehicle.wheelbase = preset.params.wheelbase;
-                    vehicle.width = preset.params.width;
-                    vehicle.overhangFront = preset.params.overhangFront;
-                    vehicle.overhangRear = preset.params.overhangRear;
-                    vehicle.maxSteeringAngle = preset.params.maxSteeringAngle * Math.PI / 180;
+                const selected = vehiclePresets.find(p => p.id === selectedId);
+                if (selected) {
+                    applyModalPreset(selected);
 
-                    if (preset.type === 'trailer') {
-                        vehicle.hasTrailer = true;
-                        vehicle.trailerWheelbase = preset.params.trailerWheelbase;
-                        vehicle.trailerWidth = preset.params.trailerWidth;
-                        vehicle.trailerOverhangRear = preset.params.trailerOverhangRear;
-                        vehicle.trailerOverhangFront = preset.params.trailerOverhangFront || 0;
-                        vehicle.hitchOffset = preset.params.hitchOffset || 0;
+                    // Pole Trailer UI Logic
+                    if (selected.id === 'pole_trailer') {
+                        inputs.poleLengthGroup.style.display = 'block';
+                        inputs.poleLengthInput.value = selected.params.trailerWheelbase;
+                        inputs.poleLengthVal.textContent = selected.params.trailerWheelbase.toFixed(1);
                     } else {
-                        vehicle.hasTrailer = false;
+                        inputs.poleLengthGroup.style.display = 'none';
                     }
+
+                    saveModalValues();
                     update();
                 }
+            });
+
+            inputs.poleLengthInput.addEventListener('input', (e) => {
+                const val = parseFloat(e.target.value);
+                inputs.poleLengthVal.textContent = val.toFixed(1);
+                vehicle.trailerWheelbase = val;
+                inputs.m_trailerWheelbase.value = val; // Sync with modal
+                update();
             });
 
             inputs.drawIntervalInput.addEventListener('change', update);

@@ -895,6 +895,16 @@
             simulate(path, vehicle, referencePoint = 'rear') {
                 if (!path || path.length < 2) return [];
 
+                const stepSize = this.stepSize || 0.1;
+                const wb = Number(vehicle.wheelbase);
+                const ohF = Number(vehicle.overhangFront);
+                const ohR = Number(vehicle.overhangRear);
+                const width = Number(vehicle.width);
+                const tWb = Number(vehicle.trailerWheelbase);
+                const tOhR = Number(vehicle.trailerOverhangRear);
+                const tWidth = Number(vehicle.trailerWidth);
+                const hitch = Number(vehicle.hitchOffset);
+
                 const states = [];
 
                 if (referencePoint === 'front') {
@@ -904,14 +914,14 @@
                     const startHeading = Math.atan2(path[1].y - path[0].y, path[1].x - path[0].x);
 
                     // Current Rear Axle Position
-                    let currRearX = path[0].x - vehicle.wheelbase * Math.cos(startHeading);
-                    let currRearY = path[0].y - vehicle.wheelbase * Math.sin(startHeading);
+                    let currRearX = path[0].x - wb * Math.cos(startHeading);
+                    let currRearY = path[0].y - wb * Math.sin(startHeading);
                     let currHeading = startHeading;
 
                     // Trailer State
                     let trailerHeading = startHeading;
-                    let trailerX = currRearX - vehicle.hitchOffset * Math.cos(currHeading) - vehicle.trailerWheelbase * Math.cos(trailerHeading);
-                    let trailerY = currRearY - vehicle.hitchOffset * Math.sin(currHeading) - vehicle.trailerWheelbase * Math.sin(trailerHeading);
+                    let trailerX = currRearX - hitch * Math.cos(currHeading) - tWb * Math.cos(trailerHeading);
+                    let trailerY = currRearY - hitch * Math.sin(currHeading) - tWb * Math.sin(trailerHeading);
 
                     // Interpolate the path to fixed step size first.
                     const interpolatedPath = [];
@@ -920,7 +930,7 @@
                         const p1 = path[i];
                         const p2 = path[i + 1];
                         const dist = Math.hypot(p2.x - p1.x, p2.y - p1.y);
-                        const numSteps = Math.ceil(dist / this.stepSize);
+                        const numSteps = Math.ceil(dist / stepSize);
                         for (let j = 1; j <= numSteps; j++) {
                             const t = j / numSteps;
                             interpolatedPath.push({
@@ -948,13 +958,13 @@
                         }
 
                         // Update Rear Position to be exactly 'wheelbase' behind Front
-                        currRearX = frontX - vehicle.wheelbase * Math.cos(currHeading);
-                        currRearY = frontY - vehicle.wheelbase * Math.sin(currHeading);
+                        currRearX = frontX - wb * Math.cos(currHeading);
+                        currRearY = frontY - wb * Math.sin(currHeading);
 
                         // 2. Update Trailer
                         if (vehicle.hasTrailer) {
-                            const hitchX = currRearX - vehicle.hitchOffset * Math.cos(currHeading);
-                            const hitchY = currRearY - vehicle.hitchOffset * Math.sin(currHeading);
+                            const hitchX = currRearX - hitch * Math.cos(currHeading);
+                            const hitchY = currRearY - hitch * Math.sin(currHeading);
 
                             const dxT = hitchX - trailerX;
                             const dyT = hitchY - trailerY;
@@ -964,15 +974,15 @@
                                 trailerHeading = Math.atan2(dyT, dxT);
                             }
 
-                            trailerX = hitchX - vehicle.trailerWheelbase * Math.cos(trailerHeading);
-                            trailerY = hitchY - vehicle.trailerWheelbase * Math.sin(trailerHeading);
+                            trailerX = hitchX - tWb * Math.cos(trailerHeading);
+                            trailerY = hitchY - tWb * Math.sin(trailerHeading);
                         }
 
                         // Calculate Envelopes
-                        const tractorCorners = this.getVehicleCorners(currRearX, currRearY, currHeading, vehicle.wheelbase + vehicle.overhangFront, -vehicle.overhangRear, vehicle.width);
+                        const tractorCorners = this.getVehicleCorners(currRearX, currRearY, currHeading, wb + ohF, -ohR, width);
                         let trailerCorners = null;
                         if (vehicle.hasTrailer) {
-                            trailerCorners = this.getVehicleCorners(trailerX, trailerY, trailerHeading, vehicle.trailerWheelbase, -vehicle.trailerOverhangRear, vehicle.trailerWidth);
+                            trailerCorners = this.getVehicleCorners(trailerX, trailerY, trailerHeading, tWb, -tOhR, tWidth);
                         }
 
                         states.push({
@@ -2637,7 +2647,8 @@
 
                 // 0. Draw Completed Paths
                 const intervalMeters = parseFloat(inputs.drawIntervalInput.value) || 5.0;
-                const step = Math.max(1, Math.round(intervalMeters / engine.stepSize));
+                const stepSize = engine.stepSize || 0.1;
+                const step = Math.max(1, Math.round(intervalMeters / stepSize));
                 const referencePoint = inputs.referencePointInput.value;
 
                 paths.forEach(p => {

@@ -2092,7 +2092,9 @@
                 // Trailer
                 if (tWb > 0) {
                     const vHitchX = -hitch; // Relative to tractor rear axle (0)
-                    const vTrailerWb = isPoleTrailer ? 6.0 : 5.0; // Visual length for trailer WB
+                    // For Pole Trailer, use actual length to show telescopic effect.
+                    // For Standard Trailer, use fixed visual length to maintain icon look.
+                    const vTrailerWb = isPoleTrailer ? tWb : 5.0;
                     const vTrailerOhR = 1.5;
                     const vTrailerOhF = isPoleTrailer ? 0 : 0.5;
                     const vTrailerWidth = isPoleTrailer ? 2.3 : 2.5;
@@ -2182,7 +2184,8 @@
                 // Trailer
                 if (tWb > 0) {
                     const vHitchX = -hitch;
-                    const vTrailerWb = isPoleTrailer ? 6.0 : 5.0;
+                    // For Pole Trailer, use actual length to show telescopic effect.
+                    const vTrailerWb = isPoleTrailer ? tWb : 5.0;
                     const vTrailerOhR = 1.5;
                     const vTrailerOhF = isPoleTrailer ? 0 : 0.5;
                     const vTrailerH = 2.8;

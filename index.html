@@ -2251,26 +2251,7 @@
                 }
             }
 
-            function drawAxleGroup(ctx, centerX, width, count, wL, wW) {
-                const spacing = 1.2; // 1.2m spacing
-                const startX = centerX + (count - 1) * spacing / 2;
 
-                for (let i = 0; i < count; i++) {
-                    const x = startX - i * spacing;
-                    ctx.fillRect(x - wL / 2, width / 2 - wW, wL, wW);
-                    ctx.fillRect(x - wL / 2, -width / 2, wL, wW);
-                }
-            }
-
-            function drawAxleGroupSide(ctx, centerX, count, radius) {
-                const spacing = 1.2;
-                const startX = centerX + (count - 1) * spacing / 2;
-
-                for (let i = 0; i < count; i++) {
-                    const x = startX - i * spacing;
-                    ctx.beginPath(); ctx.arc(x, radius, radius, 0, Math.PI * 2); ctx.fill();
-                }
-            }
 
             function drawDim(ctx, x1, y1, x2, y2, text, offset = 0) {
                 ctx.save();
@@ -2364,6 +2345,26 @@
                 ctx.restore();
             }
 
+            function drawAxleGroup(ctx, centerX, width, count, wL, wW) {
+                const spacing = 1.2; // 1.2m spacing
+                const startX = centerX + (count - 1) * spacing / 2;
+
+                for (let i = 0; i < count; i++) {
+                    const x = startX - i * spacing;
+                    ctx.fillRect(x - wL / 2, width / 2 - wW, wL, wW);
+                    ctx.fillRect(x - wL / 2, -width / 2, wL, wW);
+                }
+            }
+
+            function drawAxleGroupSide(ctx, centerX, count, radius) {
+                const spacing = 1.2;
+                const startX = centerX + (count - 1) * spacing / 2;
+
+                for (let i = 0; i < count; i++) {
+                    const x = startX - i * spacing;
+                    ctx.beginPath(); ctx.arc(x, radius, radius, 0, Math.PI * 2); ctx.fill();
+                }
+            }
 
             // Sidebar Preset Logic
             // The HTML now directly contains the options, so this loop is no longer needed for the sidebar.

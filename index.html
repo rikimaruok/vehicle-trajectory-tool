@@ -1233,59 +1233,63 @@
             }
 
             drawSimulation(states, vehicle, step = 50) {
-                if (!states || states.length === 0) return;
+                try {
+                    if (!states || states.length === 0) return;
 
-                // 0. Swept Path (包絡線) - 青い破線
-                this.ctx.strokeStyle = 'blue';
-                this.ctx.lineWidth = 1;
-                this.ctx.setLineDash([3, 3]);
+                    // 0. Swept Path (包絡線) - 青い破線
+                    this.ctx.strokeStyle = 'blue';
+                    this.ctx.lineWidth = 1;
+                    this.ctx.setLineDash([3, 3]);
 
-                this.drawEnvelopeLine(states, s => s.envelope.tractor.fl);
-                this.drawEnvelopeLine(states, s => s.envelope.tractor.fr);
+                    this.drawEnvelopeLine(states, s => s.envelope.tractor.fl);
+                    this.drawEnvelopeLine(states, s => s.envelope.tractor.fr);
 
-                if (vehicle.hasTrailer) {
-                    // トレーラーの左後・右後
-                    this.drawEnvelopeLine(states, s => s.envelope.trailer.rl);
-                    this.drawEnvelopeLine(states, s => s.envelope.trailer.rr);
-                } else {
-                    // 単車の場合はトラクターの後ろも描く
-                    this.drawEnvelopeLine(states, s => s.envelope.tractor.rl);
-                    this.drawEnvelopeLine(states, s => s.envelope.tractor.rr);
-                }
+                    if (vehicle.hasTrailer) {
+                        // トレーラーの左後・右後
+                        this.drawEnvelopeLine(states, s => s.envelope.trailer.rl);
+                        this.drawEnvelopeLine(states, s => s.envelope.trailer.rr);
+                    } else {
+                        // 単車の場合はトラクターの後ろも描く
+                        this.drawEnvelopeLine(states, s => s.envelope.tractor.rl);
+                        this.drawEnvelopeLine(states, s => s.envelope.tractor.rr);
+                    }
 
-                this.ctx.setLineDash([]);
+                    this.ctx.setLineDash([]);
 
-                // 1. トラクター後輪軌跡
-                this.ctx.beginPath();
-                this.ctx.strokeStyle = 'red';
-                this.ctx.lineWidth = 2;
-                const start = this.toScreen(states[0].x, states[0].y);
-                this.ctx.moveTo(start.x, start.y);
-                for (let i = 1; i < states.length; i++) {
-                    const p = this.toScreen(states[i].x, states[i].y);
-                    this.ctx.lineTo(p.x, p.y);
-                }
-                this.ctx.stroke();
-
-                // 2. トレーラー後輪軌跡
-                if (vehicle.hasTrailer) {
+                    // 1. トラクター後輪軌跡
                     this.ctx.beginPath();
-                    this.ctx.strokeStyle = 'green';
+                    this.ctx.strokeStyle = 'red';
                     this.ctx.lineWidth = 2;
-                    const tStart = this.toScreen(states[0].trailer.x, states[0].trailer.y);
-                    this.ctx.moveTo(tStart.x, tStart.y);
+                    const start = this.toScreen(states[0].x, states[0].y);
+                    this.ctx.moveTo(start.x, start.y);
                     for (let i = 1; i < states.length; i++) {
-                        const p = this.toScreen(states[i].trailer.x, states[i].trailer.y);
+                        const p = this.toScreen(states[i].x, states[i].y);
                         this.ctx.lineTo(p.x, p.y);
                     }
                     this.ctx.stroke();
-                }
 
-                // 3. 車両描画
-                for (let i = 0; i < states.length; i += step) {
-                    this.drawVehicleBody(states[i], vehicle, i === states.length - 1);
+                    // 2. トレーラー後輪軌跡
+                    if (vehicle.hasTrailer) {
+                        this.ctx.beginPath();
+                        this.ctx.strokeStyle = 'green';
+                        this.ctx.lineWidth = 2;
+                        const tStart = this.toScreen(states[0].trailer.x, states[0].trailer.y);
+                        this.ctx.moveTo(tStart.x, tStart.y);
+                        for (let i = 1; i < states.length; i++) {
+                            const p = this.toScreen(states[i].trailer.x, states[i].trailer.y);
+                            this.ctx.lineTo(p.x, p.y);
+                        }
+                        this.ctx.stroke();
+                    }
+
+                    // 3. 車両描画
+                    for (let i = 0; i < states.length; i += step) {
+                        this.drawVehicleBody(states[i], vehicle, i === states.length - 1);
+                    }
+                    this.drawVehicleBody(states[states.length - 1], vehicle, true);
+                } catch (e) {
+                    console.error("Error in drawSimulation:", e);
                 }
-                this.drawVehicleBody(states[states.length - 1], vehicle, true);
             }
 
             drawEnvelopeLine(states, selector) {
@@ -2629,39 +2633,43 @@
             }
 
             function update() {
-                renderer.clear();
+                try {
+                    renderer.clear();
 
-                // 0. Draw Completed Paths
-                const intervalMeters = parseFloat(inputs.drawIntervalInput.value) || 5.0;
-                const stepSize = engine.stepSize || 0.1;
-                const step = Math.max(1, Math.round(intervalMeters / stepSize));
+                    // 0. Draw Completed Paths
+                    const intervalMeters = parseFloat(inputs.drawIntervalInput.value) || 5.0;
+                    const stepSize = engine.stepSize || 0.1;
+                    const step = Math.max(1, Math.round(intervalMeters / stepSize));
 
-                paths.forEach(p => {
-                    renderer.drawPath(p, null);
-                    if (p.length > 1) {
-                        const states = engine.simulate(p, vehicle);
-                        renderer.drawSimulation(states, vehicle, step);
-                    }
-                });
+                    paths.forEach(p => {
+                        renderer.drawPath(p, null);
+                        if (p.length > 1) {
+                            const states = engine.simulate(p, vehicle);
+                            renderer.drawSimulation(states, vehicle, step);
+                        }
+                    });
 
-                // 1. Draw Current Path
-                renderer.drawPath(path, currentMousePos);
+                    // 1. Draw Current Path
+                    renderer.drawPath(path, currentMousePos);
 
-                // 2. Simulate & Draw Vehicle
-                let simPath = [...path];
-                if (interactionMode === 'draw' && !isPanning && currentMousePos && calibrationState === 'none') {
-                    if (path.length > 0) {
-                        const last = path[path.length - 1];
-                        const dist = Math.hypot(currentMousePos.x - last.x, currentMousePos.y - last.y);
-                        if (dist > 0.1) {
-                            simPath.push(currentMousePos);
+                    // 2. Simulate & Draw Vehicle
+                    let simPath = [...path];
+                    if (interactionMode === 'draw' && !isPanning && currentMousePos && calibrationState === 'none') {
+                        if (path.length > 0) {
+                            const last = path[path.length - 1];
+                            const dist = Math.hypot(currentMousePos.x - last.x, currentMousePos.y - last.y);
+                            if (dist > 0.1) {
+                                simPath.push(currentMousePos);
+                            }
                         }
                     }
-                }
 
-                if (simPath.length > 1) {
-                    const states = engine.simulate(simPath, vehicle);
-                    renderer.drawSimulation(states, vehicle, step);
+                    if (simPath.length > 1) {
+                        const states = engine.simulate(simPath, vehicle);
+                        renderer.drawSimulation(states, vehicle, step);
+                    }
+                } catch (e) {
+                    console.error("Error in update:", e);
                 }
             }
 

@@ -1,4 +1,4 @@
-export class SimulationEngine {
+class SimulationEngine {
     constructor() {
         this.stepSize = 0.1;
     }
@@ -172,3 +172,6 @@ export class SimulationEngine {
         return states;
     }
 }
+
+// Expose to global scope
+window.SimulationEngine = SimulationEngine;

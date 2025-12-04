@@ -1,4 +1,4 @@
-export const vehiclePresets = [
+const vehiclePresets = [
     {
         id: '2t_truck',
         name: '2tトラック',
@@ -79,7 +79,7 @@ export const vehiclePresets = [
     }
 ];
 
-export class VehicleModel {
+class VehicleModel {
     constructor() {
         // 初期値 (2tトラック相当)
         this.wheelbase = 2.5;
@@ -100,3 +100,7 @@ export class VehicleModel {
         this.isPoleTrailer = false;
     }
 }
+
+// Expose to global scope
+window.VehicleModel = VehicleModel;
+window.vehiclePresets = vehiclePresets;

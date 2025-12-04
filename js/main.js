@@ -1,6 +1,7 @@
-import { VehicleModel, vehiclePresets } from './VehicleModel.js';
-import { SimulationEngine } from './SimulationEngine.js';
-import { Renderer } from './Renderer.js';
+// Imports removed for standard script loading
+// import { VehicleModel, vehiclePresets } from './VehicleModel.js';
+// import { SimulationEngine } from './SimulationEngine.js';
+// import { Renderer } from './Renderer.js';
 
 // --- Global Variables ---
 let calibrationState = 'none'; // 'none', 'point1', 'point2'
@@ -21,8 +22,8 @@ const renderer = new Renderer(canvas);
 const vehicle = new VehicleModel();
 const engine = new SimulationEngine();
 
-let path = [];
-// let paths = []; // Unused
+let paths = []; // Array of path arrays
+let currentPath = [];
 let isDrawing = false;
 
 // Background & Calibration Globals
@@ -271,6 +272,12 @@ canvas.addEventListener('mouseup', stopDrawing);
 canvas.addEventListener('mouseleave', stopDrawing);
 canvas.addEventListener('wheel', handleZoom, { passive: false });
 
+// Right-click to finish drawing
+canvas.addEventListener('contextmenu', (e) => {
+    e.preventDefault();
+    finishCurrentPath();
+});
+
 function handleZoom(e) {
     e.preventDefault();
     const rect = canvas.getBoundingClientRect();
@@ -282,6 +289,9 @@ function handleZoom(e) {
 }
 
 function startDrawing(e) {
+    // Ignore right click for starting drawing (handled by contextmenu)
+    if (e.button !== 0) return;
+
     // Calibration Logic (Priority)
     if (calibrationState === 'point1') {
         const rect = canvas.getBoundingClientRect();
@@ -372,6 +382,15 @@ function stopDrawing() {
     update();
 }
 
+function finishCurrentPath() {
+    if (currentPath.length > 0) {
+        paths.push([...currentPath]);
+        currentPath = [];
+        isDrawing = false;
+        update();
+    }
+}
+
 function addPoint(e) {
     const rect = canvas.getBoundingClientRect();
     const x = e.clientX - rect.left;
@@ -381,29 +400,104 @@ function addPoint(e) {
     const worldPos = renderer.toWorld(x, y);
 
     // 点の間隔が近すぎる場合は追加しない（間引き）
-    if (path.length > 0) {
-        const last = path[path.length - 1];
+    if (currentPath.length > 0) {
+        const last = currentPath[currentPath.length - 1];
         const dist = Math.hypot(worldPos.x - last.x, worldPos.y - last.y);
         if (dist < 0.5) return; // 0.5m以内は無視
     }
 
-    path.push(worldPos);
+    currentPath.push(worldPos);
     update();
 }
 
 // Buttons
 inputs.undoBtn.addEventListener('click', () => {
-    if (path.length > 0) {
-        path.pop();
-        update();
+    if (currentPath.length > 0) {
+        currentPath.pop();
+    } else if (paths.length > 0) {
+        // Restore last path to currentPath to allow editing?
+        // Or just delete last path?
+        // Let's delete last path for simplicity, or pop from it.
+        // User expectation: Undo last action.
+        // If currentPath is empty, undo removes the last completed path.
+        paths.pop();
     }
+    update();
 });
 
 inputs.clearBtn.addEventListener('click', () => {
-    if (confirm("全消去しますか？")) {
-        path = [];
-        update();
+    paths = [];
+    currentPath = [];
+    update();
+});
+
+// DXF Export Logic
+inputs.exportDxfBtn.addEventListener('click', () => {
+    if (paths.length === 0 && currentPath.length === 0) {
+        alert("エクスポートする軌跡がありません (No path to export)");
+        return;
     }
+
+    let dxfContent = "0\nSECTION\n2\nENTITIES\n";
+
+    // Helper to add LINE entity
+    function addLine(x1, y1, x2, y2, layer) {
+        dxfContent += "0\nLINE\n";
+        dxfContent += "8\n" + layer + "\n";
+        dxfContent += "10\n" + x1.toFixed(4) + "\n";
+        dxfContent += "20\n" + y1.toFixed(4) + "\n";
+        dxfContent += "11\n" + x2.toFixed(4) + "\n";
+        dxfContent += "21\n" + y2.toFixed(4) + "\n";
+    }
+
+    // Process all paths
+    const allPaths = [...paths];
+    if (currentPath.length > 0) allPaths.push(currentPath);
+
+    allPaths.forEach((p, index) => {
+        if (p.length < 2) return;
+
+        // Simulate
+        const states = engine.simulate(p, vehicle);
+        if (!states || states.length === 0) return;
+
+        // 1. Swept Path (Envelope) - Layer: ENVELOPE
+        // Tractor Front Left
+        for (let i = 0; i < states.length - 1; i++) {
+            const s1 = states[i];
+            const s2 = states[i + 1];
+            addLine(s1.envelope.tractor.fl.x, s1.envelope.tractor.fl.y, s2.envelope.tractor.fl.x, s2.envelope.tractor.fl.y, "ENVELOPE_TRACTOR");
+            addLine(s1.envelope.tractor.fr.x, s1.envelope.tractor.fr.y, s2.envelope.tractor.fr.x, s2.envelope.tractor.fr.y, "ENVELOPE_TRACTOR");
+
+            if (vehicle.hasTrailer) {
+                addLine(s1.envelope.trailer.rl.x, s1.envelope.trailer.rl.y, s2.envelope.trailer.rl.x, s2.envelope.trailer.rl.y, "ENVELOPE_TRAILER");
+                addLine(s1.envelope.trailer.rr.x, s1.envelope.trailer.rr.y, s2.envelope.trailer.rr.x, s2.envelope.trailer.rr.y, "ENVELOPE_TRAILER");
+            } else {
+                addLine(s1.envelope.tractor.rl.x, s1.envelope.tractor.rl.y, s2.envelope.tractor.rl.x, s2.envelope.tractor.rl.y, "ENVELOPE_TRACTOR");
+                addLine(s1.envelope.tractor.rr.x, s1.envelope.tractor.rr.y, s2.envelope.tractor.rr.x, s2.envelope.tractor.rr.y, "ENVELOPE_TRACTOR");
+            }
+        }
+
+        // 2. Wheel Path - Layer: WHEEL_PATH
+        for (let i = 0; i < states.length - 1; i++) {
+            addLine(states[i].x, states[i].y, states[i + 1].x, states[i + 1].y, "WHEEL_PATH_TRACTOR");
+            if (vehicle.hasTrailer) {
+                addLine(states[i].trailer.x, states[i].trailer.y, states[i + 1].trailer.x, states[i + 1].trailer.y, "WHEEL_PATH_TRAILER");
+            }
+        }
+    });
+
+    dxfContent += "0\nENDSEC\n0\nEOF\n";
+
+    // Download
+    const blob = new Blob([dxfContent], { type: 'application/dxf' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `trajectory_${new Date().toISOString().slice(0, 19).replace(/[-T:]/g, '')}.dxf`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
 });
 
 // Vehicle Preset Logic
@@ -980,10 +1074,21 @@ function drawDim(ctx, x1, y1, x2, y2, text, offset = 0) {
 // --- Main Loop ---
 function update() {
     renderer.clear();
-    renderer.drawPath(path, currentMousePos, calibrationState, calPoint1, calPoint2);
 
-    if (path.length >= 2) {
-        const states = engine.simulate(path, vehicle);
+    // Draw Completed Paths
+    for (const p of paths) {
+        renderer.drawPath(p, null); // No current mouse pos for completed paths
+        if (p.length >= 2) {
+            const states = engine.simulate(p, vehicle);
+            renderer.drawSimulation(states, vehicle);
+        }
+    }
+
+    // Draw Current Path (being drawn)
+    renderer.drawPath(currentPath, currentMousePos, calibrationState, calPoint1, calPoint2);
+
+    if (currentPath.length >= 2) {
+        const states = engine.simulate(currentPath, vehicle);
         renderer.drawSimulation(states, vehicle);
     }
 }

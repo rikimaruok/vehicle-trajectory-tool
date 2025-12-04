@@ -19,7 +19,7 @@ function drawAxleGroupSide(ctx, centerX, count, radius) {
     }
 }
 
-export class Renderer {
+class Renderer {
     constructor(canvas) {
         this.canvas = canvas;
         this.ctx = canvas.getContext('2d');
@@ -421,3 +421,6 @@ export class Renderer {
         }
     }
 }
+
+// Expose to global scope
+window.Renderer = Renderer;
